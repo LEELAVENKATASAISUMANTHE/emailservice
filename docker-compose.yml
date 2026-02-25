@@ -26,13 +26,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:4400}
+        VITE_API_URL: ${VITE_API_URL:-http://134.209.159.132:4400}
     container_name: emailservice-frontend
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:4400}
+      VITE_API_URL: ${VITE_API_URL:-http://134.209.159.132:4400}
       PORT: 3000
     ports:
       - "${FRONTEND_HOST_PORT:-3300}:3000"

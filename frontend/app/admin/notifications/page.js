@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+const API_BASE = process.env.VITE_API_URL || "http://localhost:4000";
 
 export default function AdminNotificationsPage() {
   const [rows, setRows] = useState([]);
