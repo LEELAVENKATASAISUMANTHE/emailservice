@@ -1,0 +1,70 @@
+name: Deploy Over SSH
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/emailservice' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          IFS=',' read -ra HOSTS <<< "${{ secrets.DEPLOY_SERVER_HOSTS }}"
+          for host in "${HOSTS[@]}"; do
+            host="$(echo "$host" | xargs)"
+            [ -n "$host" ] || continue
+            ssh-keyscan -p "${DEPLOY_PORT}" -H "$host" >> ~/.ssh/known_hosts
+          done
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync code and restart containers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IFS=',' read -ra HOSTS <<< "${{ secrets.DEPLOY_SERVER_HOSTS }}"
+          for host in "${HOSTS[@]}"; do
+            host="$(echo "$host" | xargs)"
+            [ -n "$host" ] || continue
+
+            echo "Deploying to ${host}"
+
+            rsync -az --delete \
+              --exclude ".git/" \
+              --exclude ".github/" \
+              --exclude "backend/node_modules/" \
+              --exclude "frontend/node_modules/" \
+              --exclude "frontend/.next/" \
+              -e "ssh -p ${DEPLOY_PORT}" \
+              ./ "${{ secrets.DEPLOY_SSH_USER }}@${host}:${DEPLOY_PATH}/"
+
+            ssh -p "${DEPLOY_PORT}" "${{ secrets.DEPLOY_SSH_USER }}@${host}" "
+              set -e
+              cd '${DEPLOY_PATH}'
+              docker compose up -d --build
+            "
+          done

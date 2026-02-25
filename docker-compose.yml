@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: emailservice-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB_NAME: placement_erp
+      REDIS_URL: redis://redis:6379
+      KAFKA_CLIENT_ID: placement-approval-service
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_CONSUMER_GROUP: placement-approval-group
+      KAFKA_PENDING_TOPIC: job.notification.pending
+      KAFKA_SEND_TOPIC: job.notification.send
+    ports:
+      - "${BACKEND_HOST_PORT:-4400}:4000"
+    networks:
+      - erp-core-net
+      - redis-core-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:4400}
+    container_name: emailservice-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:4400}
+      PORT: 3000
+    ports:
+      - "${FRONTEND_HOST_PORT:-3300}:3000"
+    networks:
+      - erp-core-net
+      - redis-core-network
+
+networks:
+  erp-core-net:
+    external: true
+    name: erp-core-net
+  redis-core-network:
+    external: true
+    name: redis-core-network
