@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 4000
-      MONGO_URI: mongodb://mongo:27017
+      MONGO_URI: mongodb://mongodb:27017
       MONGO_DB_NAME: placement_erp
       REDIS_URL: redis://redis:6379
       KAFKA_CLIENT_ID: placement-approval-service
