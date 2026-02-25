@@ -75,3 +75,21 @@ Frontend env:
 - Student dashboard:
   - removes expired jobs with `ZREMRANGEBYSCORE`
   - reads active jobs with `ZRANGEBYSCORE now +inf`
+
+## 6) GitHub Actions SSH deploy
+
+Workflow file: `.github/workflows/deploy-ssh.yml`
+
+It deploys on push to `main`/`master` (or manual trigger), then:
+- connects to one or more servers over SSH
+- syncs repo files to the server
+- runs `docker compose up -d --build` in the deploy path
+
+Required GitHub **Secrets**:
+- `DEPLOY_SSH_PRIVATE_KEY` -> private key for server login
+- `DEPLOY_SSH_USER` -> SSH user (for example `ubuntu`)
+- `DEPLOY_SERVER_HOSTS` -> comma-separated hosts/IPs (for example `10.0.0.11,10.0.0.12`)
+
+Optional GitHub **Variables**:
+- `DEPLOY_SSH_PORT` -> default `22`
+- `DEPLOY_PATH` -> default `/opt/emailservice`
