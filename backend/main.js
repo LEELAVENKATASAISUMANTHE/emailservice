@@ -1,39 +1,54 @@
-const fs = require("fs");
-const path = require("path");
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
 
-const { env } = require("./config/env");
-const { connectMongo, disconnectMongo } = require("./utils/mongo");
-const { connectRedis, disconnectRedis } = require("./utils/redis");
-const { createKafkaClients } = require("./utils/kafka");
-const {
+import { env } from "./config/env.js";
+import { connectMongo, disconnectMongo } from "./db/mongo.js";
+import { connectRedis, disconnectRedis } from "./utils/redis.js";
+import { createKafkaClients } from "./utils/kafka.js";
+import {
+  connectMinio,
+  disconnectMinio,
+  uploadAttachmentFiles,
+  uploadAdminMessageTextFile,
+  getFileStreamByApiPath,
+  getFileStatByApiPath
+} from "./utils/minio.js";
+import {
   createAdminNotificationRouter
-} = require("./routes/adminNotifications");
-const {
+} from "./routes/adminNotifications.js";
+import {
   createStudentDashboardRouter
-} = require("./routes/studentDashboard");
-const {
+} from "./routes/studentDashboard.js";
+import { createFilesRouter } from "./routes/files.js";
+import {
+  createAdminNotificationsController
+} from "./controllers/adminNotificationsController.js";
+import {
+  createStudentDashboardController
+} from "./controllers/studentDashboardController.js";
+import { createFilesController } from "./controllers/filesController.js";
+import {
   persistPendingNotification,
   listNotifications,
   getNotificationByJobId,
   approveNotification,
   rejectNotification,
   getActiveJobsForStudent
-} = require("./services/notificationService");
-const {
+} from "./services/notificationService.js";
+import {
   buildPendingNotificationConsumer
-} = require("./consumers/pendingNotificationConsumer");
-const {
+} from "./consumers/pendingNotificationConsumer.js";
+import {
   notFoundHandler,
   errorHandler
-} = require("./middlewares/errorHandler");
+} from "./middlewares/errorHandler.js";
 
 async function start() {
   await connectMongo();
   const redisClient = await connectRedis();
-  const { consumer, producer, topics } = createKafkaClients();
+  await connectMinio();
 
+  const { consumer, producer, topics } = createKafkaClients();
   await producer.connect();
   console.log("[kafka] producer connected");
 
@@ -42,16 +57,42 @@ async function start() {
     topic: topics.pending,
     persistPendingNotification
   });
-
   await pendingConsumer.start();
+
+  const minioService = {
+    uploadAttachmentFiles,
+    uploadAdminMessageTextFile
+  };
+
+  const adminNotificationsController = createAdminNotificationsController({
+    listNotifications,
+    getNotificationByJobId,
+    approveNotification: (payload) =>
+      approveNotification(payload, {
+        redisClient,
+        kafkaProducer: producer,
+        sendTopic: topics.send,
+        minioService
+      }),
+    rejectNotification: (payload) =>
+      rejectNotification(payload, {
+        minioService
+      })
+  });
+
+  const studentDashboardController = createStudentDashboardController({
+    getActiveJobsForStudent: (studentId) =>
+      getActiveJobsForStudent(studentId, { redisClient })
+  });
+
+  const filesController = createFilesController({
+    getFileStreamByApiPath,
+    getFileStatByApiPath
+  });
 
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "2mb" }));
-
-  const uploadsDir = path.join(__dirname, "uploads");
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  app.use("/uploads", express.static(uploadsDir));
 
   app.get("/health", (_req, res) => {
     res.json({
@@ -62,26 +103,13 @@ async function start() {
 
   app.use(
     "/api/admin/notifications",
-    createAdminNotificationRouter({
-      listNotifications,
-      getNotificationByJobId,
-      approveNotification: (payload) =>
-        approveNotification(payload, {
-          redisClient,
-          kafkaProducer: producer,
-          sendTopic: topics.send
-        }),
-      rejectNotification
-    })
+    createAdminNotificationRouter({ adminNotificationsController })
   );
-
   app.use(
     "/api/student",
-    createStudentDashboardRouter({
-      getActiveJobsForStudent: (studentId) =>
-        getActiveJobsForStudent(studentId, { redisClient })
-    })
+    createStudentDashboardRouter({ studentDashboardController })
   );
+  app.use("/api/files", createFilesRouter({ filesController }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -97,6 +125,7 @@ async function start() {
     await producer.disconnect();
     await disconnectRedis();
     await disconnectMongo();
+    await disconnectMinio();
     process.exit(0);
   }
 

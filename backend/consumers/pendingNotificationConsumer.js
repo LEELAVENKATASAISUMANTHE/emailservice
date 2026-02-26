@@ -1,4 +1,4 @@
-const { pendingNotificationSchema } = require("../schemas/pendingNotification");
+import { pendingNotificationSchema } from "../schemas/pendingNotification.js";
 
 async function commitMessage(consumer, topic, partition, offset) {
   await consumer.commitOffsets([
@@ -10,7 +10,7 @@ async function commitMessage(consumer, topic, partition, offset) {
   ]);
 }
 
-function buildPendingNotificationConsumer({
+export function buildPendingNotificationConsumer({
   consumer,
   topic,
   persistPendingNotification
@@ -77,5 +77,3 @@ function buildPendingNotificationConsumer({
     stop
   };
 }
-
-module.exports = { buildPendingNotificationConsumer };

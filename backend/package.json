@@ -1,6 +1,7 @@
 {
   "name": "placement-erp-notification-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Admin approval notification service",
   "main": "main.js",
   "scripts": {
@@ -12,6 +13,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "kafkajs": "^2.2.4",
+    "minio": "^8.0.6",
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1",
     "redis": "^4.7.0",

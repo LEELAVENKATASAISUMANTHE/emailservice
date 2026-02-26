@@ -1,7 +1,9 @@
-const { Kafka, logLevel } = require("kafkajs");
-const { env } = require("../config/env");
+import kafkajs from "kafkajs";
+import { env } from "../config/env.js";
 
-function createKafkaClients() {
+const { Kafka, logLevel } = kafkajs;
+
+export function createKafkaClients() {
   const kafka = new Kafka({
     clientId: env.KAFKA_CLIENT_ID,
     brokers: env.KAFKA_BROKERS,
@@ -23,5 +25,3 @@ function createKafkaClients() {
     }
   };
 }
-
-module.exports = { createKafkaClients };

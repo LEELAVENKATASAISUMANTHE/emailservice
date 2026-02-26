@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const eligibleStudentSchema = new mongoose.Schema(
   {
@@ -30,7 +30,8 @@ const notificationSchema = new mongoose.Schema(
       required: true
     },
     adminMessage: { type: String, default: null },
-    attachments: { type: [String], default: null },
+    adminMessageTextFile: { type: String, default: null },
+    attachments: { type: [String], default: [] },
     createdAt: { type: Date, required: true, default: Date.now },
     approvedAt: { type: Date, default: null },
     rejectedAt: { type: Date, default: null }
@@ -40,4 +41,6 @@ const notificationSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Notification", notificationSchema);
+const Notification = mongoose.model("Notification", notificationSchema);
+
+export default Notification;

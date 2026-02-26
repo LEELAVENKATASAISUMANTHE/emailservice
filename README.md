@@ -2,7 +2,7 @@
 
 This repository now contains:
 
-- `backend/` -> Node.js + Express + KafkaJS + MongoDB + Redis
+- `backend/` -> Node.js + Express + KafkaJS + MongoDB + Redis + MinIO
 - `frontend/` -> Next.js admin/student UI
 
 ## 1) Backend setup
@@ -27,6 +27,10 @@ npm run dev
 - `KAFKA_CONSUMER_GROUP=placement-approval-group`
 - `KAFKA_PENDING_TOPIC=job.notification.pending`
 - `KAFKA_SEND_TOPIC=job.notification.send`
+- `MINIO_ENDPOINT=http://localhost:9000`
+- `MINIO_ACCESS_KEY=minioadmin`
+- `MINIO_SECRET_KEY=minioadmin`
+- `MINIO_BUCKET=email-bodies`
 
 ## 2) Frontend setup
 
@@ -49,6 +53,7 @@ Frontend env:
 - `POST /api/admin/notifications/:jobId/approve` (`multipart/form-data`)
 - `POST /api/admin/notifications/:jobId/reject` (`application/json`)
 - `GET /api/student/dashboard?studentId=1BY23CS132`
+- `GET /api/files/:objectName` (serve attachments/admin-message `.txt` from MinIO)
 
 ## 4) UI pages
 
@@ -64,6 +69,8 @@ Frontend env:
 - Commits Kafka offset only after successful DB write for valid messages
 - Approve flow:
   - transition `PENDING_APPROVAL -> APPROVED -> SENT`
+  - uploads attachments to MinIO
+  - stores admin message body as `.txt` in MinIO
   - stores per-student visibility in Redis sorted set:
     - key: `student:{studentId}:jobs`
     - member: `jobId`
@@ -71,12 +78,21 @@ Frontend env:
   - publishes to `job.notification.send`
 - Reject flow:
   - transition to `REJECTED`
+  - stores admin message body as `.txt` in MinIO
   - no Redis write, no Kafka send publish
 - Student dashboard:
   - removes expired jobs with `ZREMRANGEBYSCORE`
   - reads active jobs with `ZRANGEBYSCORE now +inf`
 
-## 6) GitHub Actions SSH deploy
+## 6) Backend folder flow (beginner-friendly)
+
+- `routes/` -> URL mapping only
+- `controllers/` -> request/response handling
+- `services/` -> business logic
+- `db/` -> Mongo model + repository queries
+- `utils/` -> Redis, Kafka, MinIO clients/helpers
+
+## 7) GitHub Actions SSH deploy
 
 Workflow file: `.github/workflows/deploy-ssh.yml`
 

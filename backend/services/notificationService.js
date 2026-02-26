@@ -1,13 +1,13 @@
-const Notification = require("../models/Notification");
+import * as notificationRepository from "../db/notificationRepository.js";
 
-const NOTIFICATION_STATUS = Object.freeze({
+export const NOTIFICATION_STATUS = Object.freeze({
   PENDING_APPROVAL: "PENDING_APPROVAL",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   SENT: "SENT"
 });
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(statusCode, message) {
     super(message);
     this.name = "ApiError";
@@ -23,7 +23,11 @@ function parseJobId(jobId) {
   return parsed;
 }
 
-async function persistPendingNotification(payload) {
+function normalizeAdminMessage(adminMessage) {
+  return typeof adminMessage === "string" ? adminMessage : "";
+}
+
+export async function persistPendingNotification(payload) {
   const createPayload = {
     jobId: payload.jobId,
     companyName: payload.companyName,
@@ -33,50 +37,24 @@ async function persistPendingNotification(payload) {
     applicationDeadline: payload.applicationDeadline,
     status: NOTIFICATION_STATUS.PENDING_APPROVAL,
     adminMessage: null,
-    attachments: null,
+    adminMessageTextFile: null,
+    attachments: [],
     createdAt: new Date(),
     approvedAt: null,
     rejectedAt: null
   };
 
-  await Notification.updateOne(
-    { jobId: payload.jobId },
-    {
-      $setOnInsert: createPayload
-    },
-    { upsert: true }
-  );
-
-  return Notification.findOne({ jobId: payload.jobId }).lean();
+  return notificationRepository.upsertPendingNotification(createPayload);
 }
 
-async function listNotifications() {
-  return Notification.find(
-    {},
-    {
-      _id: 0,
-      jobId: 1,
-      companyName: 1,
-      eligibleCount: 1,
-      status: 1,
-      applicationDeadline: 1,
-      createdAt: 1,
-      approvedAt: 1,
-      rejectedAt: 1
-    }
-  )
-    .sort({ createdAt: -1 })
-    .lean();
+export async function listNotifications() {
+  return notificationRepository.listNotificationSummaries();
 }
 
-async function getNotificationByJobId(jobId) {
+export async function getNotificationByJobId(jobId) {
   const parsedJobId = parseJobId(jobId);
-  const notification = await Notification.findOne(
-    { jobId: parsedJobId },
-    {
-      _id: 0
-    }
-  ).lean();
+  const notification =
+    await notificationRepository.findNotificationByJobId(parsedJobId);
 
   if (!notification) {
     throw new ApiError(404, `Notification for jobId ${parsedJobId} not found.`);
@@ -85,12 +63,39 @@ async function getNotificationByJobId(jobId) {
   return notification;
 }
 
-async function approveNotification(
-  { jobId, adminMessage, attachments },
-  { redisClient, kafkaProducer, sendTopic }
+async function addApprovedJobToStudentCache(redisClient, notification) {
+  const expiryTimestamp = Math.floor(
+    new Date(notification.applicationDeadline).getTime() / 1000
+  );
+  const redisCommands = redisClient.multi();
+  let hasAnyStudent = false;
+
+  for (const student of notification.eligibleStudents || []) {
+    if (!student?.student_id) {
+      continue;
+    }
+
+    hasAnyStudent = true;
+    redisCommands.zAdd(`student:${student.student_id}:jobs`, [
+      {
+        score: expiryTimestamp,
+        value: String(notification.jobId)
+      }
+    ]);
+  }
+
+  if (hasAnyStudent) {
+    await redisCommands.exec();
+  }
+}
+
+export async function approveNotification(
+  { jobId, adminMessage, attachmentFiles },
+  { redisClient, kafkaProducer, sendTopic, minioService }
 ) {
   const parsedJobId = parseJobId(jobId);
-  const existing = await Notification.findOne({ jobId: parsedJobId });
+  const existing =
+    await notificationRepository.findNotificationByJobId(parsedJobId);
 
   if (!existing) {
     throw new ApiError(404, `Notification for jobId ${parsedJobId} not found.`);
@@ -107,60 +112,42 @@ async function approveNotification(
     throw new ApiError(409, "Job is already approved.");
   }
 
+  const safeAdminMessage = normalizeAdminMessage(adminMessage);
   const approvedAt = new Date();
 
-  const updated = await Notification.findOneAndUpdate(
-    {
-      jobId: parsedJobId,
-      status: NOTIFICATION_STATUS.PENDING_APPROVAL
-    },
-    {
-      $set: {
-        status: NOTIFICATION_STATUS.APPROVED,
-        adminMessage: adminMessage || null,
-        attachments: attachments && attachments.length > 0 ? attachments : null,
-        approvedAt
-      }
-    },
-    {
-      new: true
-    }
-  );
+  const [attachmentPaths, adminMessageTextFile] = await Promise.all([
+    minioService.uploadAttachmentFiles(parsedJobId, attachmentFiles || []),
+    minioService.uploadAdminMessageTextFile(
+      parsedJobId,
+      "approved",
+      safeAdminMessage
+    )
+  ]);
 
-  if (!updated) {
+  const approvedNotification =
+    await notificationRepository.updatePendingNotificationToApproved({
+      jobId: parsedJobId,
+      adminMessage: safeAdminMessage || null,
+      adminMessageTextFile,
+      attachments: attachmentPaths,
+      approvedAt
+    });
+
+  if (!approvedNotification) {
     throw new ApiError(
       409,
       "Notification is no longer pending approval. Refresh and retry."
     );
   }
 
-  const expiryTimestamp = Math.floor(
-    new Date(updated.applicationDeadline).getTime() / 1000
-  );
-  const redisCommands = redisClient.multi();
-
-  for (const student of updated.eligibleStudents) {
-    if (!student?.student_id) {
-      continue;
-    }
-
-    redisCommands.zAdd(`student:${student.student_id}:jobs`, [
-      {
-        score: expiryTimestamp,
-        value: String(updated.jobId)
-      }
-    ]);
-  }
-
-  if (updated.eligibleStudents.length > 0) {
-    await redisCommands.exec();
-  }
+  await addApprovedJobToStudentCache(redisClient, approvedNotification);
 
   const payload = {
-    jobId: updated.jobId,
-    eligibleStudents: updated.eligibleStudents,
-    adminMessage: updated.adminMessage,
-    attachments: updated.attachments,
+    jobId: approvedNotification.jobId,
+    eligibleStudents: approvedNotification.eligibleStudents,
+    adminMessage: approvedNotification.adminMessage,
+    adminMessageTextFile: approvedNotification.adminMessageTextFile,
+    attachments: approvedNotification.attachments,
     approvedAt: approvedAt.toISOString()
   };
 
@@ -168,21 +155,32 @@ async function approveNotification(
     topic: sendTopic,
     messages: [
       {
-        key: String(updated.jobId),
+        key: String(approvedNotification.jobId),
         value: JSON.stringify(payload)
       }
     ]
   });
 
-  updated.status = NOTIFICATION_STATUS.SENT;
-  await updated.save();
+  const sentNotification =
+    await notificationRepository.markApprovedNotificationAsSent(parsedJobId);
 
-  return updated.toObject({ versionKey: false });
+  if (!sentNotification) {
+    throw new ApiError(
+      500,
+      "Notification approved but could not be marked as SENT."
+    );
+  }
+
+  return sentNotification;
 }
 
-async function rejectNotification({ jobId, adminMessage }) {
+export async function rejectNotification(
+  { jobId, adminMessage },
+  { minioService }
+) {
   const parsedJobId = parseJobId(jobId);
-  const existing = await Notification.findOne({ jobId: parsedJobId });
+  const existing =
+    await notificationRepository.findNotificationByJobId(parsedJobId);
 
   if (!existing) {
     throw new ApiError(404, `Notification for jobId ${parsedJobId} not found.`);
@@ -199,42 +197,40 @@ async function rejectNotification({ jobId, adminMessage }) {
     throw new ApiError(409, "Approved job cannot be rejected.");
   }
 
+  const safeAdminMessage = normalizeAdminMessage(adminMessage);
   const rejectedAt = new Date();
 
-  const updated = await Notification.findOneAndUpdate(
-    {
-      jobId: parsedJobId,
-      status: NOTIFICATION_STATUS.PENDING_APPROVAL
-    },
-    {
-      $set: {
-        status: NOTIFICATION_STATUS.REJECTED,
-        adminMessage: adminMessage || null,
-        rejectedAt
-      }
-    },
-    {
-      new: true
-    }
+  const adminMessageTextFile = await minioService.uploadAdminMessageTextFile(
+    parsedJobId,
+    "rejected",
+    safeAdminMessage
   );
 
-  if (!updated) {
+  const rejectedNotification =
+    await notificationRepository.updatePendingNotificationToRejected({
+      jobId: parsedJobId,
+      adminMessage: safeAdminMessage || null,
+      adminMessageTextFile,
+      rejectedAt
+    });
+
+  if (!rejectedNotification) {
     throw new ApiError(
       409,
       "Notification is no longer pending approval. Refresh and retry."
     );
   }
 
-  return updated.toObject({ versionKey: false });
+  return rejectedNotification;
 }
 
-async function getActiveJobsForStudent(studentId, { redisClient }) {
+export async function getActiveJobsForStudent(studentId, { redisClient }) {
   if (!studentId || typeof studentId !== "string") {
     throw new ApiError(400, "studentId is required.");
   }
 
-  const trimmedId = studentId.trim();
-  const redisKey = `student:${trimmedId}:jobs`;
+  const trimmedStudentId = studentId.trim();
+  const redisKey = `student:${trimmedStudentId}:jobs`;
   const now = Math.floor(Date.now() / 1000);
 
   await redisClient.zRemRangeByScore(redisKey, "-inf", now - 1);
@@ -244,40 +240,12 @@ async function getActiveJobsForStudent(studentId, { redisClient }) {
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value));
 
-  const jobs =
-    numericJobIds.length > 0
-      ? await Notification.find(
-          {
-            jobId: { $in: numericJobIds }
-          },
-          {
-            _id: 0,
-            jobId: 1,
-            companyName: 1,
-            eligibleCount: 1,
-            applicationDeadline: 1,
-            status: 1
-          }
-        )
-          .sort({ applicationDeadline: 1 })
-          .lean()
-      : [];
+  const jobs = await notificationRepository.findJobsByIds(numericJobIds);
 
   return {
-    studentId: trimmedId,
+    studentId: trimmedStudentId,
     now,
     activeJobIds,
     jobs
   };
 }
-
-module.exports = {
-  NOTIFICATION_STATUS,
-  ApiError,
-  persistPendingNotification,
-  listNotifications,
-  getNotificationByJobId,
-  approveNotification,
-  rejectNotification,
-  getActiveJobsForStudent
-};

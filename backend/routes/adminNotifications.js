@@ -1,90 +1,28 @@
-const express = require("express");
-const multer = require("multer");
-const path = require("path");
+import express from "express";
+import multer from "multer";
 
 const MAX_UPLOAD_FILES = 5;
-const uploadDir = path.join(__dirname, "..", "uploads");
+const MAX_UPLOAD_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
-const storage = multer.diskStorage({
-  destination: uploadDir,
-  filename: (_req, file, callback) => {
-    const safeName = file.originalname.replace(/\s+/g, "_");
-    callback(null, `${Date.now()}_${safeName}`);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: MAX_UPLOAD_FILES,
+    fileSize: MAX_UPLOAD_FILE_SIZE_BYTES
   }
 });
 
-const upload = multer({ storage });
-
-function createAdminNotificationRouter({
-  listNotifications,
-  getNotificationByJobId,
-  approveNotification,
-  rejectNotification
-}) {
+export function createAdminNotificationRouter({ adminNotificationsController }) {
   const router = express.Router();
 
-  router.get("/", async (_req, res, next) => {
-    try {
-      const notifications = await listNotifications();
-      res.json({
-        count: notifications.length,
-        data: notifications
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get("/:jobId", async (req, res, next) => {
-    try {
-      const notification = await getNotificationByJobId(req.params.jobId);
-      res.json(notification);
-    } catch (error) {
-      next(error);
-    }
-  });
-
+  router.get("/", adminNotificationsController.list);
+  router.get("/:jobId", adminNotificationsController.getByJobId);
   router.post(
     "/:jobId/approve",
     upload.array("attachments", MAX_UPLOAD_FILES),
-    async (req, res, next) => {
-      try {
-        const files = req.files || [];
-        const attachmentPaths = files.map((file) => `/uploads/${file.filename}`);
-
-        const updated = await approveNotification({
-          jobId: req.params.jobId,
-          adminMessage: req.body.adminMessage,
-          attachments: attachmentPaths
-        });
-
-        res.status(200).json({
-          message: "Notification approved and published.",
-          data: updated
-        });
-      } catch (error) {
-        next(error);
-      }
-    }
+    adminNotificationsController.approve
   );
-
-  router.post("/:jobId/reject", async (req, res, next) => {
-    try {
-      const updated = await rejectNotification({
-        jobId: req.params.jobId,
-        adminMessage: req.body.adminMessage
-      });
-
-      res.status(200).json({
-        message: "Notification rejected.",
-        data: updated
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post("/:jobId/reject", adminNotificationsController.reject);
 
   return router;
 }
-
-module.exports = { createAdminNotificationRouter };

@@ -1,19 +1,7 @@
-const express = require("express");
+import express from "express";
 
-function createStudentDashboardRouter({ getActiveJobsForStudent }) {
+export function createStudentDashboardRouter({ studentDashboardController }) {
   const router = express.Router();
-
-  router.get("/dashboard", async (req, res, next) => {
-    try {
-      const studentId = req.query.studentId;
-      const data = await getActiveJobsForStudent(studentId);
-      res.json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
-
+  router.get("/dashboard", studentDashboardController.dashboard);
   return router;
 }
-
-module.exports = { createStudentDashboardRouter };
