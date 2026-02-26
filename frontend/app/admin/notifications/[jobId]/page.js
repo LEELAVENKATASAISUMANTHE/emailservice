@@ -205,43 +205,86 @@ export default function AdminNotificationDetailPage() {
               processed.
             </p>
 
-            <label htmlFor="adminMessage">Email Body / Admin Message</label>
-            <textarea
-              id="adminMessage"
-              className="textarea"
-              value={adminMessage}
-              onChange={(event) => setAdminMessage(event.target.value)}
-              disabled={readOnly || submitting}
-            />
+            <div className="compose-shell">
+              <div className="compose-topbar">New Message</div>
+              <div className="compose-row">
+                <span className="compose-key">To</span>
+                <span className="compose-value">
+                  Eligible students ({notification.eligibleCount})
+                </span>
+              </div>
+              <div className="compose-row">
+                <span className="compose-key">Subject</span>
+                <span className="compose-value">
+                  Placement update for Job {notification.jobId} |{" "}
+                  {notification.companyName}
+                </span>
+              </div>
 
-            <div style={{ height: 12 }} />
+              <div className="compose-editor-shell">
+                <div className="compose-toolbar" aria-hidden="true">
+                  <div className="compose-tool-group">
+                    <span className="compose-tool">A</span>
+                    <span className="compose-tool compose-tool-bold">B</span>
+                    <span className="compose-tool compose-tool-italic">I</span>
+                    <span className="compose-tool compose-tool-underline">U</span>
+                  </div>
+                  <div className="compose-tool-divider" />
+                  <div className="compose-tool-group">
+                    <span className="compose-tool">List</span>
+                    <span className="compose-tool">Num</span>
+                    <span className="compose-tool">Link</span>
+                    <span className="compose-tool">Quote</span>
+                  </div>
+                </div>
 
-            <label htmlFor="attachments">Attachments</label>
-            <input
-              id="attachments"
-              type="file"
-              multiple
-              className="file"
-              onChange={(event) => setFiles(Array.from(event.target.files || []))}
-              disabled={readOnly || submitting}
-            />
+                <label className="sr-only" htmlFor="adminMessage">
+                  Email Body / Admin Message
+                </label>
+                <textarea
+                  id="adminMessage"
+                  className="textarea compose-body"
+                  value={adminMessage}
+                  onChange={(event) => setAdminMessage(event.target.value)}
+                  placeholder="Write your message to eligible students..."
+                  disabled={readOnly || submitting}
+                />
+              </div>
 
-            <div style={{ height: 12 }} />
-            <div className="row">
-              <button
-                className="btn btn-primary"
-                onClick={onApprove}
-                disabled={readOnly || submitting}
-              >
-                Approve
-              </button>
-              <button
-                className="btn btn-danger"
-                onClick={onReject}
-                disabled={readOnly || submitting}
-              >
-                Reject
-              </button>
+              <div className="compose-footer">
+                <div className="compose-attachments">
+                  <label htmlFor="attachments" className="compose-attach-label">
+                    Attachments
+                  </label>
+                  <input
+                    id="attachments"
+                    type="file"
+                    multiple
+                    className="file compose-file"
+                    onChange={(event) =>
+                      setFiles(Array.from(event.target.files || []))
+                    }
+                    disabled={readOnly || submitting}
+                  />
+                </div>
+
+                <div className="row compose-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={onApprove}
+                    disabled={readOnly || submitting}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={onReject}
+                    disabled={readOnly || submitting}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
             </div>
 
             {notification.attachments && notification.attachments.length > 0 && (
