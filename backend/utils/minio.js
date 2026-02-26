@@ -1,4 +1,4 @@
-import minio from "minio";
+import * as minio from "minio";
 import { env } from "../config/env.js";
 
 const { Client } = minio;
