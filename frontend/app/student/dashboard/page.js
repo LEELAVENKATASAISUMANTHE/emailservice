@@ -12,7 +12,7 @@ export default function StudentDashboardPage() {
 
   async function loadDashboard() {
     if (!studentId.trim()) {
-      setError("studentId is required.");
+      setError("Student ID is required.");
       return;
     }
 
@@ -21,60 +21,67 @@ export default function StudentDashboardPage() {
 
     try {
       const response = await fetch(
-        `${API_BASE}/api/student/dashboard?studentId=${encodeURIComponent(
-          studentId.trim()
-        )}`,
+        `${API_BASE}/api/student/dashboard?studentId=${encodeURIComponent(studentId.trim())}`,
         { cache: "no-store" }
       );
-
       const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || `Request failed with ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
       setResult(payload);
-    } catch (loadError) {
+    } catch (err) {
       setResult(null);
-      setError(loadError.message);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter") loadDashboard();
   }
 
   return (
     <main className="shell">
       <section className="hero">
         <h1>Student Dashboard</h1>
-        <p>Shows active jobs from Redis sorted-set visibility.</p>
+        <p>View active placement opportunities available for you.</p>
       </section>
 
-      <section className="card">
-        <h2>Lookup Active Jobs</h2>
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ marginBottom: 12 }}>Lookup Active Jobs</h2>
         <div className="row">
           <input
             className="input"
             placeholder="Enter student ID (e.g., 1BY23CS132)"
             value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}
+            onChange={(e) => setStudentId(e.target.value)}
+            onKeyDown={handleKeyDown}
             style={{ flex: 1, minWidth: 240 }}
           />
           <button className="btn btn-primary" onClick={loadDashboard} disabled={loading}>
-            {loading ? "Loading..." : "Fetch"}
+            {loading ? "Loading..." : "Search"}
           </button>
         </div>
 
-        {error && <p className="notice error">{error}</p>}
+        {error && <div className="notice error">{error}</div>}
+      </section>
 
-        {result && (
-          <>
-            <div style={{ height: 14 }} />
-            <p className="muted">
-              Student: <span className="mono">{result.studentId}</span>
-            </p>
-            <p className="muted">
-              Active Job IDs:{" "}
-              <span className="mono">{(result.activeJobIds || []).join(", ") || "None"}</span>
-            </p>
+      {result && (
+        <>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-value brand">{(result.activeJobIds || []).length}</div>
+              <div className="stat-label">Active Jobs</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value good">{(result.jobs || []).length}</div>
+              <div className="stat-label">Job Details</div>
+            </div>
+          </div>
+
+          <section className="card">
+            <h3>
+              Jobs for <span className="mono" style={{ color: "var(--brand)" }}>{result.studentId}</span>
+            </h3>
 
             <div className="table-wrap">
               <table className="table">
@@ -82,36 +89,34 @@ export default function StudentDashboardPage() {
                   <tr>
                     <th>Job ID</th>
                     <th>Company</th>
-                    <th>Eligible Count</th>
+                    <th>Eligible</th>
                     <th>Status</th>
-                    <th>Application Deadline</th>
+                    <th>Deadline</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(result.jobs || []).length === 0 && (
                     <tr>
-                      <td colSpan={5} className="muted">
-                        No active jobs.
-                      </td>
+                      <td colSpan={5} className="muted">No active jobs found.</td>
                     </tr>
                   )}
                   {(result.jobs || []).map((job) => (
                     <tr key={job.jobId}>
                       <td className="mono">{job.jobId}</td>
-                      <td>{job.companyName}</td>
+                      <td style={{ fontWeight: 600 }}>{job.companyName}</td>
                       <td>{job.eligibleCount}</td>
                       <td>
-                        <span className={`pill ${job.status}`}>{job.status}</span>
+                        <span className={`pill ${job.status}`}>{job.status?.replace("_", " ")}</span>
                       </td>
-                      <td>{new Date(job.applicationDeadline).toLocaleString()}</td>
+                      <td>{new Date(job.applicationDeadline).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </>
-        )}
-      </section>
+          </section>
+        </>
+      )}
     </main>
   );
 }
