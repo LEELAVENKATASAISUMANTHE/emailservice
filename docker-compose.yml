@@ -82,8 +82,8 @@ services:
       # ZeptoMail (Zoho)
       ZEPTOMAIL_API_URL: https://api.zeptomail.in/v1.1/email
       ZEPTOMAIL_TOKEN: Zoho-enczapikey PHtE6r0LF+nsj2Yv+0ACt/K/EMb3NYoprOgyKAlOtYhEC6BRHU0BqNoixDCy+kgoA6FCEPHJyI0+s7+V57qAJ2ruZmZLXGqyqK3sx/VYSPOZsbq6x00at1weckXYVo7td9Jp0yTTstmX
-      FROM_EMAIL: [EMAIL_ADDRESS]
-      FROM_NAME: Placement Cell 
+      FROM_EMAIL: "noreply@sumantheluri.tech"
+      FROM_NAME: Placement Cell
 
     networks:
       - erp-core-net
