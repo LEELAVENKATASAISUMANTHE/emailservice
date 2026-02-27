@@ -1,10 +1,13 @@
 import { Client } from 'minio';
 
 const bucketName = process.env.MINIO_BUCKET || 'email-bodies';
+
+const minioUrl = new URL(process.env.MINIO_ENDPOINT || 'http://minio:9000');
+
 const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT || 'minio',
-  port: 9000,
-  useSSL: false,
+  endPoint: minioUrl.hostname,
+  port: Number(minioUrl.port) || 9000,
+  useSSL: minioUrl.protocol === 'https:',
   accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
   secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
 });
