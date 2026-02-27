@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import autoconsume from "./utils/autoconsume.js";
-import connectDB from "./db/connectDB.js";
+import connectDB from "./db/models/mongo.js";
 
 dotenv.config();
 
