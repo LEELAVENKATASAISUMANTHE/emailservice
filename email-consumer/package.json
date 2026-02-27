@@ -11,7 +11,7 @@
     "dependencies": {
         "kafkajs": "^2.2.4",
         "minio": "^8.0.6",
-        "zeptomail": "^0.0.1"
+        "zeptomail": "^7.0.2"
     },
     "devDependencies": {
         "nodemon": "^3.1.9"
