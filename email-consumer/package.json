@@ -1,0 +1,19 @@
+{
+    "name": "email-consumer",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Kafka consumer that sends emails via ZeptoMail (Zoho)",
+    "main": "main.js",
+    "scripts": {
+        "start": "node main.js",
+        "dev": "nodemon main.js"
+    },
+    "dependencies": {
+        "kafkajs": "^2.2.4",
+        "minio": "^8.0.6",
+        "zeptomail": "^0.0.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.9"
+    }
+}
