@@ -124,3 +124,22 @@ export async function findJobsByIds(jobIds) {
     .sort({ applicationDeadline: 1 })
     .lean();
 }
+
+export async function findJobsForStudent(studentId) {
+  return Notification.find(
+    {
+      "eligibleStudents.student_id": studentId,
+      status: { $in: ["APPROVED", "SENT", "PENDING_APPROVAL"] }
+    },
+    {
+      _id: 0,
+      jobId: 1,
+      companyName: 1,
+      eligibleCount: 1,
+      applicationDeadline: 1,
+      status: 1
+    }
+  )
+    .sort({ applicationDeadline: 1 })
+    .lean();
+}
