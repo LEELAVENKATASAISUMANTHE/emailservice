@@ -1,27 +1,51 @@
-import kafkajs from "kafkajs";
-import { env } from "../config/env.js";
+import { Kafka } from "kafkajs";
 
-const { Kafka, logLevel } = kafkajs;
+const kafka = new Kafka({
+  clientId: "email-service",
+  brokers: ["redpanda:9092"],
+});
 
-export function createKafkaClients() {
-  const kafka = new Kafka({
-    clientId: env.KAFKA_CLIENT_ID,
-    brokers: env.KAFKA_BROKERS,
-    logLevel: logLevel.INFO
-  });
+const producer = kafka.producer();
+const consumer = kafka.consumer({ groupId: "email-service-group" });
 
-  const consumer = kafka.consumer({
-    groupId: env.KAFKA_CONSUMER_GROUP
-  });
-
-  const producer = kafka.producer();
-
-  return {
-    consumer,
-    producer,
-    topics: {
-      pending: env.KAFKA_PENDING_TOPIC,
-      send: env.KAFKA_SEND_TOPIC
-    }
-  };
+const connectConsumer = async () => {
+  try {
+    await consumer.connect();
+    await consumer.subscribe({ topic: "job.notification.pending", fromBeginning: true });
+    console.log("✅ Kafka consumer connected and subscribed to email-jobs");
+  } catch (error) {
+    console.error("Error connecting to Kafka:", error);
+  }
+};
+const connectProducer = async () => {
+  try {
+    await producer.connect();
+  } catch (error) {
+    console.error("Error connecting to Kafka:", error);
+  }
 }
+
+const sendMessage = async (topic, message) => {
+  try {
+    await producer.send({
+      topic,
+      messages: [
+        {
+          key: String(message.jobId),
+          value: JSON.stringify(message),
+        },
+      ],
+    });
+    console.log(`📤 Message sent to ${topic}`);
+  } catch (error) {
+    console.error("Error sending message to Kafka:", error);
+  }
+};
+
+
+export {
+  connectProducer,
+  sendMessage,
+  connectConsumer,
+  consumer
+};
