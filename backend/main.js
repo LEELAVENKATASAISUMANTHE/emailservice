@@ -10,7 +10,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
 app.use("/api/notifications", notificationRoutes);
+app.get("/", (req, res) => {
+    res.send("Hello World!");
+});
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
