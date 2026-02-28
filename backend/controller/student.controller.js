@@ -1,4 +1,5 @@
 import * as notificationRepository from "../db/notificationRepository.js";
+import { getJobsForStudent } from "../utils/redis.js";
 
 export const getStudentDashboard = async (req, res) => {
     try {
@@ -8,11 +9,17 @@ export const getStudentDashboard = async (req, res) => {
             return res.status(400).json({ error: "studentId query parameter is required" });
         }
 
-        const jobs = await notificationRepository.findJobsForStudent(studentId);
+        // 1. Get active jobIds from Redis sorted set (fast lookup)
+        const activeJobIds = await getJobsForStudent(studentId);
+
+        // 2. Fetch job details from MongoDB for those jobIds
+        const jobs = activeJobIds.length > 0
+            ? await notificationRepository.findJobsByIds(activeJobIds.map(Number))
+            : [];
 
         res.json({
             studentId,
-            activeJobIds: jobs.map(j => j.jobId),
+            activeJobIds: activeJobIds.map(Number),
             jobs,
         });
     } catch (error) {

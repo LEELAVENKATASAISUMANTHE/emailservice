@@ -1,6 +1,7 @@
 import * as notificationRepository from "../db/notificationRepository.js";
 import { saveJobEmailBody, uploadAttachment } from "../utils/minio.js";
 import { connectProducer, sendMessage } from "../utils/kafka.js";
+import { addJobForStudents } from "../utils/redis.js";
 
 export const getNotificationSummaries = async (req, res) => {
     try {
@@ -60,10 +61,17 @@ export const approveNotification = async (req, res) => {
             return res.status(404).json({ error: "Notification not found or not in PENDING_APPROVAL status" });
         }
 
-        // 4. Connect producer and fan out one message per eligible student
-        await connectProducer();
-
         const eligibleStudents = notification.eligibleStudents || [];
+        const deadlineTs = new Date(notification.applicationDeadline).getTime();
+
+        // 4. Store student → jobId mapping in Redis sorted set
+        if (eligibleStudents.length > 0) {
+            await addJobForStudents(eligibleStudents, notification.jobId, deadlineTs);
+            console.log(`📌 Stored job ${jobId} in Redis for ${eligibleStudents.length} students`);
+        }
+
+        // 5. Connect producer and fan out one message per eligible student
+        await connectProducer();
 
         for (const student of eligibleStudents) {
             await sendMessage("job.notification.send", {
