@@ -89,6 +89,24 @@ services:
       - erp-core-net
       - redis-core-network
 
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    restart: unless-stopped
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: placement
+      MB_DB_PORT: 5432
+      MB_DB_USER: admin
+      MB_DB_PASS: sumanth123
+      MB_DB_HOST: 172.17.0.1
+    ports:
+      - "8765:3000"
+    volumes:
+      - metabase-data:/metabase-data
+    networks:
+      - erp-core-net
+
   minio:
     image: minio/minio:latest
     container_name: emailservice-minio
@@ -113,6 +131,7 @@ services:
 
 volumes:
   minio-data:
+  metabase-data:
 
 
 networks:

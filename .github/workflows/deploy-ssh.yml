@@ -66,6 +66,7 @@ jobs:
             ssh -p "${DEPLOY_PORT}" "${{ secrets.DEPLOY_SSH_USER }}@${host}" "
               set -e
               cd '${DEPLOY_PATH}'
+              docker compose pull metabase minio
               docker compose up -d --build
             "
           done
