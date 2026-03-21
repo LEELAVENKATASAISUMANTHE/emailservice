@@ -105,7 +105,6 @@ services:
       - erp-core-net
   nocodb:
     image: nocodb/nocodb:latest
-    container_name: nocodb
     restart: unless-stopped
     environment:
       NC_DB: "pg://admin:sumanth123@172.17.0.1:5432/placement"

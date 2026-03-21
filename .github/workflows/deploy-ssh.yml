@@ -66,7 +66,9 @@ jobs:
             ssh -p "${DEPLOY_PORT}" "${{ secrets.DEPLOY_SSH_USER }}@${host}" "
               set -e
               cd '${DEPLOY_PATH}'
+              # Cleanup legacy container name that can conflict with compose-managed nocodb service.
+              docker rm -f nocodb >/dev/null 2>&1 || true
               docker compose pull metabase minio
-              docker compose up -d --build
+              docker compose up -d --build --remove-orphans
             "
           done
