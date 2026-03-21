@@ -111,7 +111,7 @@ services:
    environment:
     NC_DB: "pg://admin:sumanth123@172.17.0.1:5432/nocodb"
    ports:
-    - "8080:8080"
+    - "8083:8080"
    volumes:
     - nocodb-data:/usr/app/data
    networks:
