@@ -103,21 +103,20 @@ services:
       - metabase-data:/metabase-data
     networks:
       - erp-core-net
-
-  nocoDB:
-  image: nocodb/nocodb:latest
-  container_name: nocodb
-  restart: unless-stopped
-  environment:
-    NC_DB: "pg://admin:sumanth123@host.docker.internal:5432/placement"
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
-  ports:
-    - "8083:8080"
-  volumes:
-    - nocodb-data:/usr/app/data
-  networks:
-    - erp-core-net
+  nocodb:
+    image: nocodb/nocodb:latest
+    container_name: nocodb
+    restart: unless-stopped
+    environment:
+      NC_DB: "pg://admin:sumanth123@host.docker.internal:5432/placement"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8083:8080"
+    volumes:
+      - nocodb-data:/usr/app/data
+    networks:
+      - erp-core-net
 
   minio:
     image: minio/minio:latest
