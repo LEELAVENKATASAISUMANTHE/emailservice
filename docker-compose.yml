@@ -144,6 +144,7 @@ services:
 volumes:
   minio-data:
   metabase-data:
+  nocodb-data:
 
 
 networks:
