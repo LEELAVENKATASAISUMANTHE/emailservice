@@ -107,7 +107,7 @@ services:
     image: nocodb/nocodb:latest
     restart: unless-stopped
     environment:
-      NC_DB: "pg://admin:sumanth123@172.17.0.1:5432?d=placement"
+      NC_DB: "pg://172.17.0.1:5432?u=admin&p=sumanth123&d=placement"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
