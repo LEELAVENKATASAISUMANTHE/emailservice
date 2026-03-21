@@ -105,16 +105,18 @@ services:
       - erp-core-net
 
   nocoDB:
-   image: nocodb/nocodb:latest
-   container_name: nocodb
-   restart: unless-stopped
-   environment:
-    NC_DB: "pg://admin:sumanth123@172.17.0.1:5432/placement"
-   ports:
+  image: nocodb/nocodb:latest
+  container_name: nocodb
+  restart: unless-stopped
+  environment:
+    NC_DB: "pg://admin:sumanth123@host.docker.internal:5432/placement"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  ports:
     - "8083:8080"
-   volumes:
+  volumes:
     - nocodb-data:/usr/app/data
-   networks:
+  networks:
     - erp-core-net
 
   minio:
