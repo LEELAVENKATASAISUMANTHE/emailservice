@@ -119,6 +119,36 @@ services:
     networks:
       - erp-core-net
 
+  directus:
+    image: directus/directus:latest
+    container_name: directus
+    restart: unless-stopped
+    ports:
+      - "8055:8055"
+
+    environment:
+      # 🔐 CHANGE THESE (VERY IMPORTANT)
+      KEY: "REPLACE_WITH_STRONG_KEY"
+      SECRET: "REPLACE_WITH_STRONG_SECRET"
+
+      # 🐘 Your existing Postgres (same as metabase/nocodb)
+      DB_CLIENT: "pg"
+      DB_HOST: "172.17.0.1"
+      DB_PORT: "5432"
+      DB_DATABASE: "placement"
+      DB_USER: "admin"
+      DB_PASSWORD: "sumanth123"
+
+      # 👤 Admin login
+      ADMIN_EMAIL: "admin@example.com"
+      ADMIN_PASSWORD: "admin123"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    networks:
+      - erp-core-net
+
   minio:
     image: minio/minio:latest
     container_name: emailservice-minio
