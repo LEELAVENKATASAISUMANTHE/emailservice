@@ -14,6 +14,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     env:
       DEPLOY_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/emailservice' }}
@@ -39,9 +40,10 @@ jobs:
             [ -n "$host" ] || continue
             ssh-keyscan -p "${DEPLOY_PORT}" -H "$host" >> ~/.ssh/known_hosts
           done
+
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Sync code and restart containers
+      - name: Deploy and Fix NiFi Properly
         shell: bash
         run: |
           set -euo pipefail
@@ -51,8 +53,9 @@ jobs:
             host="$(echo "$host" | xargs)"
             [ -n "$host" ] || continue
 
-            echo "Deploying to ${host}"
+            echo "🚀 Deploying to ${host}"
 
+            # Sync project
             rsync -az --delete \
               --exclude ".git/" \
               --exclude ".github/" \
@@ -63,12 +66,29 @@ jobs:
               -e "ssh -p ${DEPLOY_PORT}" \
               ./ "${{ secrets.DEPLOY_SSH_USER }}@${host}:${DEPLOY_PATH}/"
 
+            # Remote execution
             ssh -p "${DEPLOY_PORT}" "${{ secrets.DEPLOY_SSH_USER }}@${host}" "
               set -e
               cd '${DEPLOY_PATH}'
-              # Cleanup legacy container name that can conflict with compose-managed nocodb service.
-              docker rm -f nocodb >/dev/null 2>&1 || true
-              docker compose pull metabase minio
-              docker compose up -d --build --remove-orphans
+
+              echo '🧹 Stopping old containers...'
+              docker compose down --remove-orphans || true
+
+              echo '🔥 Removing ALL NiFi volumes (critical fix)...'
+              docker volume rm nifi-data nifi-content nifi-db nifi-flowfile nifi-provenance nifi-conf 2>/dev/null || true
+
+              echo '🧱 Rebuilding everything fresh...'
+              docker compose up -d --build --force-recreate
+
+              echo '⏳ Waiting for NiFi startup...'
+              sleep 25
+
+              echo '🔍 Checking NiFi server mode...'
+              docker logs nifi | grep -i 'Started Server' || true
+
+              echo '🌐 Testing NiFi endpoint...'
+              curl -s http://localhost:8090 || echo 'NiFi not responding yet'
+
+              echo '✅ Deployment completed on ${host}'
             "
           done
