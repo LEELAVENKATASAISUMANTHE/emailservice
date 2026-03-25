@@ -135,7 +135,7 @@ services:
 
       # 🔥 memory optimization (important for your 4GB server)
       NIFI_JVM_HEAP_INIT: 512m
-      NIFI_JVM_HEAP_MAX: 1g
+      NIFI_JVM_HEAP_MAX: 512m
 
     volumes:
       - nifi-data:/opt/nifi/nifi-current/data
