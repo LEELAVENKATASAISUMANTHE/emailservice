@@ -122,7 +122,7 @@ services:
 
   # 🔥 FIXED NiFi (HTTP ONLY)
   nifi:
-    image: apache/nifi:latest
+    image: apache/nifi:1.23.2
     container_name: nifi
     restart: unless-stopped
     ports:
