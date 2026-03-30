@@ -74,16 +74,9 @@ jobs:
               echo '🧹 Stopping old containers...'
               docker compose down --remove-orphans || true
 
-              echo '🔥 Removing ALL NiFi volumes (critical fix)...'
-              docker volume rm nifi-data nifi-content nifi-db nifi-flowfile nifi-provenance nifi-conf 2>/dev/null || true
-
               echo '🧱 Rebuilding everything fresh...'
               docker compose up -d --build --force-recreate
 
-              echo '⏳ Waiting for NiFi startup...'
-              sleep 25
-
-              echo '🔍 Checking NiFi server mode...'
               docker logs nifi | grep -i 'Started Server' || true
 
               echo '🌐 Testing NiFi endpoint...'

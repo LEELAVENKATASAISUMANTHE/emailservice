@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     depends_on:
       - minio
-      - nifi
+
     environment:
       PORT: 4000
 
@@ -183,54 +183,13 @@ services:
       - erp-core-net
       - redis-core-network
 
-  # 🔥 FIXED NiFi (HTTP ONLY)
-  nifi:
-    image: apache/nifi:1.23.2
-    container_name: nifi
-    restart: unless-stopped
-    ports:
-      - "8090:8080"
-    environment:
-      NIFI_WEB_HTTP_PORT: 8080
-      NIFI_WEB_HTTP_HOST: 0.0.0.0
-      NIFI_WEB_HTTPS_PORT: ""        # 🔥 disables HTTPS
-      NIFI_SENSITIVE_PROPS_KEY: "erp-nifi-secure-key-2026"
-
-      # 🔥 memory optimization (important for your 4GB server)
-      NIFI_JVM_HEAP_INIT: 512m
-      NIFI_JVM_HEAP_MAX: 512m
-
-    volumes:
-      - nifi-data:/opt/nifi/nifi-current/data
-      - nifi-content:/opt/nifi/nifi-current/content_repository
-      - nifi-db:/opt/nifi/nifi-current/database_repository
-      - nifi-flowfile:/opt/nifi/nifi-current/flowfile_repository
-      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
-
-    networks:
-      - erp-core-net
-
-  nifi-registry:
-    image: apache/nifi-registry:latest
-    container_name: nifi-registry
-    restart: unless-stopped
-    ports:
-      - "18080:18080"
-    volumes:
-      - nifi-registry-data:/opt/nifi-registry/nifi-registry-current/database
-    networks:
-      - erp-core-net
 
 volumes:
   excel-upload-data:
   minio-data:
   metabase-data:
-  nifi-data:
-  nifi-content:
-  nifi-db:
-  nifi-flowfile:
-  nifi-provenance:
-  nifi-registry-data:
+
+
 
 networks:
   erp-core-net:
