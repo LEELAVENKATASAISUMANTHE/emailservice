@@ -80,3 +80,53 @@ export async function uploadAttachment(jobId, file) {
     throw error;
   }
 }
+
+export async function uploadExcelErrorWorkbook(jobId, buffer) {
+  try {
+    await ensureBucket();
+
+    const objectName = `excel/jobs/${jobId}/error-report.xlsx`;
+
+    await minioClient.putObject(
+      bucketName,
+      objectName,
+      buffer,
+      buffer.length,
+      {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }
+    );
+
+    return {
+      bucket: bucketName,
+      path: objectName,
+      url: `/api/excel/jobs/${jobId}/error-file`,
+    };
+  } catch (error) {
+    console.error(`Error uploading Excel error workbook for job ${jobId}:`, error);
+    throw error;
+  }
+}
+
+export async function getObjectStream(objectName) {
+  await ensureBucket();
+  return minioClient.getObject(bucketName, objectName);
+}
+
+export async function removeObjectIfExists(objectName) {
+  if (!objectName) {
+    return;
+  }
+
+  try {
+    await ensureBucket();
+    await minioClient.removeObject(bucketName, objectName);
+  } catch (error) {
+    const notFound =
+      error?.code === "NoSuchKey" || error?.message?.includes("Not Found");
+
+    if (!notFound) {
+      throw error;
+    }
+  }
+}

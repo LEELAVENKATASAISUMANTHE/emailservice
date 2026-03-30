@@ -5,6 +5,11 @@ import autoconsume from "./utils/autoconsume.js";
 import { connectMongo } from "./db/mongo.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import studentRoutes from "./routes/student.routes.js";
+import excelRoutes from "./excel/routes/excel.routes.js";
+import {
+    runExcelRetentionCleanup,
+    startExcelRetentionCleanupLoop,
+} from "./excel/services/excel.service.js";
 
 dotenv.config();
 
@@ -16,6 +21,8 @@ app.use(express.json());
 
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/student", studentRoutes);
+// changes by nakul: mount the new Excel module without altering existing route behavior
+app.use("/api/excel", excelRoutes);
 app.get("/", (req, res) => {
     res.send("Hello World!");
 });
@@ -23,5 +30,7 @@ app.get("/", (req, res) => {
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
     await connectMongo();
+    await runExcelRetentionCleanup();
+    startExcelRetentionCleanupLoop();
     await autoconsume();
 });

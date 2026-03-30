@@ -30,12 +30,51 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: email-bodies
+      EXCEL_ADMIN_API_KEY: ${EXCEL_ADMIN_API_KEY:-change-me}
+      EXCEL_MAX_UPLOAD_BYTES: ${EXCEL_MAX_UPLOAD_BYTES:-5242880}
+      EXCEL_MAX_ROWS: ${EXCEL_MAX_ROWS:-5000}
+      EXCEL_JOB_RETENTION_DAYS: ${EXCEL_JOB_RETENTION_DAYS:-7}
+      EXCEL_CLEANUP_INTERVAL_MS: ${EXCEL_CLEANUP_INTERVAL_MS:-3600000}
+      EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP: ${EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP:-false}
+      EXCEL_UPLOAD_RATE_WINDOW_MS: ${EXCEL_UPLOAD_RATE_WINDOW_MS:-60000}
+      EXCEL_UPLOAD_RATE_MAX: ${EXCEL_UPLOAD_RATE_MAX:-2}
+      EXCEL_FAILED_PREVIEW_LIMIT: ${EXCEL_FAILED_PREVIEW_LIMIT:-5}
 
     ports:
       - "${BACKEND_HOST_PORT:-4400}:4000"
+    volumes:
+      # changes by nakul: shared upload volume for the separate Excel API and worker processes
+      - excel-upload-data:/app/excel/uploads
 
     networks:
       - erp-core-net
+      - redis-core-network
+
+  excel-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: emailservice-excel-worker
+    restart: unless-stopped
+    depends_on:
+      - minio
+    command: ["node", "excel/worker/excel.worker.js"]
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      MONGO_DB_NAME: placement_erp
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: email-bodies
+      EXCEL_QUEUE_NAME: excel-queue
+      EXCEL_UPLOAD_DIR: /app/excel/uploads
+      EXCEL_MAX_ROWS: ${EXCEL_MAX_ROWS:-5000}
+      EXCEL_FAILED_PREVIEW_LIMIT: ${EXCEL_FAILED_PREVIEW_LIMIT:-5}
+    volumes:
+      # changes by nakul: share uploaded files with the backend container for background processing
+      - excel-upload-data:/app/excel/uploads
+    networks:
       - redis-core-network
 
   frontend:
@@ -159,6 +198,7 @@ services:
       - erp-core-net
 
 volumes:
+  excel-upload-data:
   minio-data:
   metabase-data:
   nifi-data:
