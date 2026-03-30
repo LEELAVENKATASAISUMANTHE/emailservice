@@ -3,7 +3,7 @@ import { Client } from 'minio';
 const BUCKET = 'excel-service';
 
 const minioClient = new Client({
-  endPoint: '134.209.159.132',
+  endPoint: 'localhost',
   port: 9000,
   useSSL: false,
   accessKey: 'minioadmin',
@@ -62,4 +62,16 @@ export async function uploadLog(sessionId, timestamp, lines) {
  */
 export async function getPresignedLogUrl(objectName) {
   return minioClient.presignedGetObject(BUCKET, objectName, 3600);
+}
+
+/**
+ * Health check — returns true if MinIO is reachable
+ */
+export async function pingMinio() {
+  try {
+    await minioClient.listBuckets();
+    return true;
+  } catch {
+    return false;
+  }
 }

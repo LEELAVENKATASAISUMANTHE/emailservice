@@ -30,6 +30,20 @@ export async function connectToDB() {
   }
 }
 
+/**
+ * Health check — returns true if PostgreSQL is reachable
+ */
+export async function pingDB() {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 export async function fetchtables(){
   try {
