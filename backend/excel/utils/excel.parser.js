@@ -77,7 +77,14 @@ function readTemplateMetadata(workbook) {
     return null;
   }
 
-  const parsed = JSON.parse(rawMetadata);
+  let parsed;
+
+  try {
+    parsed = JSON.parse(rawMetadata);
+  } catch (error) {
+    console.warn("[excel-parser] Skipping malformed template metadata:", error.message);
+    return null;
+  }
 
   return {
     version: parsed.version || 1,
