@@ -4,7 +4,6 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ExcelJS from "exceljs";
-import { Job } from "bullmq";
 import ExcelJob from "../../db/models/ExcelJob.js";
 import ImportedStudent from "../../db/models/ImportedStudent.js";
 import ImportedClass from "../../db/models/ImportedClass.js";
@@ -14,7 +13,7 @@ import {
   uploadExcelErrorWorkbook,
   removeObjectIfExists,
 } from "../../utils/minio.js";
-import { excelQueue, connection } from "../queue/excel.queue.js";
+import { sendMessage, PROCESS_TOPIC } from "../../utils/kafka.js";
 import { fieldRegistry, templatePresets } from "../registry/field.registry.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +23,7 @@ const uploadDir = process.env.EXCEL_UPLOAD_DIR || path.join(excelRootDir, "uploa
 const allowedUploadTypes = new Set(["student", "placement", "other"]);
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const maxRowsPerUpload = Number(process.env.EXCEL_MAX_ROWS || 5000);
+const maxAttempts = Number(process.env.EXCEL_MAX_ATTEMPTS || 3);
 const retentionDays = Number(process.env.EXCEL_JOB_RETENTION_DAYS || 7);
 const cleanupIntervalMs = Number(
   process.env.EXCEL_CLEANUP_INTERVAL_MS || 60 * 60 * 1000
@@ -82,7 +82,24 @@ export async function enqueueExcelProcessing(
   fileHash
 ) {
   const normalizedUploadType = normalizeUploadType(uploadType);
-  const job = await excelQueue.add("process-excel", {
+  const jobId = crypto.randomUUID();
+
+  await ExcelJob.create({
+    jobId,
+    uploadType: normalizedUploadType,
+    createdBy,
+    fileHash,
+    status: "processing",
+    progress: 0,
+    attemptsMade: 0,
+    maxAttempts: getExcelMaxAttempts(),
+    fileName: originalName,
+    failedRowPreview: [],
+    retentionExpiresAt: buildExcelRetentionExpiry(),
+  });
+
+  await sendMessage(PROCESS_TOPIC, {
+    jobId,
     filePath,
     originalName,
     uploadType: normalizedUploadType,
@@ -90,21 +107,7 @@ export async function enqueueExcelProcessing(
     fileHash,
   });
 
-  await ExcelJob.create({
-    jobId: String(job.id),
-    uploadType: normalizedUploadType,
-    createdBy,
-    fileHash,
-    status: "processing",
-    progress: 0,
-    attemptsMade: 0,
-    maxAttempts: getExcelQueueAttemptLimit(),
-    fileName: originalName,
-    failedRowPreview: [],
-    retentionExpiresAt: buildExcelRetentionExpiry(),
-  });
-
-  return job;
+  return { id: jobId };
 }
 
 export async function getExcelJobStatus(jobId) {
@@ -114,33 +117,12 @@ export async function getExcelJobStatus(jobId) {
     return null;
   }
 
-  const queueJob = await Job.fromId(excelQueue, String(jobId));
-  let queueState = null;
-  let queueMeta = null;
-
-  if (queueJob) {
-    const [state] = await Promise.all([queueJob.getState()]);
-    queueState = state;
-    queueMeta = {
-      id: queueJob.id,
-      name: queueJob.name,
-      data: queueJob.data,
-      progress: queueJob.progress,
-      attemptsMade: queueJob.attemptsMade,
-      maxAttempts: persistedJob.maxAttempts,
-      timestamp: queueJob.timestamp,
-      processedOn: queueJob.processedOn,
-      finishedOn: queueJob.finishedOn,
-    };
-  }
-
   return {
     id: persistedJob._id,
     jobId: persistedJob.jobId,
     uploadType: persistedJob.uploadType,
     status: persistedJob.status,
-    progress:
-      typeof queueMeta?.progress === "number" ? queueMeta.progress : persistedJob.progress,
+    progress: persistedJob.progress,
     fileName: persistedJob.fileName,
     createdBy: persistedJob.createdBy,
     createdAt: persistedJob.createdAt,
@@ -149,7 +131,7 @@ export async function getExcelJobStatus(jobId) {
     errorFileUrl: persistedJob.errorFileUrl,
     fileHash: persistedJob.fileHash,
     failureReason: persistedJob.failureReason,
-    state: queueState || persistedJob.status,
+    state: persistedJob.status,
     retry: {
       attemptsMade: persistedJob.attemptsMade,
       maxAttempts: persistedJob.maxAttempts,
@@ -173,7 +155,6 @@ export async function getExcelJobStatus(jobId) {
       status: `/api/excel/jobs/${persistedJob.jobId}`,
       errorFile: persistedJob.errorFileUrl,
     },
-    queue: queueMeta,
   };
 }
 
@@ -389,8 +370,8 @@ export function buildFailedRowPreview(rows) {
   }));
 }
 
-export function getExcelQueueAttemptLimit() {
-  return excelQueue.opts?.defaultJobOptions?.attempts || 1;
+export function getExcelMaxAttempts() {
+  return Number.isFinite(maxAttempts) && maxAttempts > 0 ? maxAttempts : 1;
 }
 
 export async function runExcelRetentionCleanup() {
@@ -559,8 +540,4 @@ export function buildTemplateFields(fields, uploadType) {
 
 export function getTemplateMetadataSheetName() {
   return templateMetadataSheetName;
-}
-
-export async function closeExcelQueueConnections() {
-  await Promise.all([excelQueue.close(), connection.quit()]);
 }

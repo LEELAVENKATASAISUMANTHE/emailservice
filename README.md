@@ -120,8 +120,8 @@ The backend now includes a separate Excel ingestion subsystem under `backend/exc
 - dynamic template builder based on a central field registry
 - hidden workbook metadata sheet (`__template_meta`) for self-describing uploads
 - strict parser validation against template metadata
-- background processing with `BullMQ`
-- separate worker process via `npm run excel-worker`
+- background processing with Redpanda (Kafka)
+- in-process Kafka consumer inside the Excel service
 - Mongo-backed job tracking with progress, retries, failed preview, and retention
 - uploadType-specific validation rules
 - duplicate detection inside Excel and at the persistence layer
@@ -169,7 +169,7 @@ The backend now includes a separate Excel ingestion subsystem under `backend/exc
 2. The workbook includes hidden metadata for `uploadType` and selected fields.
 3. Admin uploads the filled `.xlsx` file to `/api/excel/upload`.
 4. Backend computes a SHA-256 file hash and reuses an existing active job for duplicate uploads from the same user and upload type.
-5. BullMQ queues the job and the Excel worker processes it asynchronously.
+5. The Excel service publishes a message to `excel.job.process` and consumes it asynchronously.
 6. The parser validates template metadata, headers, and row structure.
 7. The worker validates rows, maps them into domain-specific objects, persists them through upload-type handlers, and records partial failures.
 8. Invalid rows are written into an error workbook and uploaded to MinIO.

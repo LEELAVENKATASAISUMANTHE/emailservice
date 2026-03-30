@@ -7,6 +7,12 @@ import {
   runExcelRetentionCleanup,
   startExcelRetentionCleanupLoop,
 } from "./excel/services/excel.service.js";
+import { startExcelConsumer } from "./excel/consumer/excel.consumer.js";
+import {
+  connectConsumer,
+  connectProducer,
+  disconnectKafka,
+} from "./utils/kafka.js";
 
 dotenv.config();
 
@@ -26,4 +32,17 @@ app.listen(PORT, async () => {
   await connectMongo();
   await runExcelRetentionCleanup();
   startExcelRetentionCleanupLoop();
+  await connectProducer();
+  await connectConsumer();
+  await startExcelConsumer();
+});
+
+process.on("SIGINT", async () => {
+  await disconnectKafka();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await disconnectKafka();
+  process.exit(0);
 });

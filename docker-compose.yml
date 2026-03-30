@@ -50,15 +50,19 @@ services:
       PORT: 4001
       MONGO_URI: mongodb://mongodb:27017
       MONGO_DB_NAME: placement_erp
-      REDIS_URL: redis://redis:6379
+      KAFKA_CLIENT_ID: excel-service
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_CONSUMER_GROUP: excel-service-group
+      EXCEL_PROCESS_TOPIC: excel.job.process
+      EXCEL_RESULT_TOPIC: excel.job.result
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: email-bodies
       EXCEL_ADMIN_API_KEY: ${EXCEL_ADMIN_API_KEY:-change-me}
       EXCEL_MAX_UPLOAD_BYTES: ${EXCEL_MAX_UPLOAD_BYTES:-5242880}
-      EXCEL_QUEUE_NAME: excel-queue
       EXCEL_MAX_ROWS: ${EXCEL_MAX_ROWS:-5000}
+      EXCEL_MAX_ATTEMPTS: ${EXCEL_MAX_ATTEMPTS:-3}
       EXCEL_JOB_RETENTION_DAYS: ${EXCEL_JOB_RETENTION_DAYS:-7}
       EXCEL_CLEANUP_INTERVAL_MS: ${EXCEL_CLEANUP_INTERVAL_MS:-3600000}
       EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP: ${EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP:-false}
@@ -72,34 +76,6 @@ services:
       - excel-upload-data:/app/src/excel/uploads
     networks:
       - erp-core-net
-      - redis-core-network
-
-  excel-worker:
-    build:
-      context: ./excel-service
-      dockerfile: Dockerfile
-    container_name: emailservice-excel-worker
-    restart: unless-stopped
-    depends_on:
-      - minio
-    command: ["node", "src/worker.js"]
-    environment:
-      MONGO_URI: mongodb://mongodb:27017
-      MONGO_DB_NAME: placement_erp
-      REDIS_URL: redis://redis:6379
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: email-bodies
-      EXCEL_QUEUE_NAME: excel-queue
-      EXCEL_MAX_ROWS: ${EXCEL_MAX_ROWS:-5000}
-      EXCEL_FAILED_PREVIEW_LIMIT: ${EXCEL_FAILED_PREVIEW_LIMIT:-5}
-      EXCEL_UPLOAD_DIR: /app/src/excel/uploads
-    volumes:
-      - excel-upload-data:/app/src/excel/uploads
-    networks:
-      - erp-core-net
-      - redis-core-network
 
   frontend:
     build:
