@@ -1,2 +1,514 @@
 this is to test - if i can make canges
 test2
+
+
+
+• Yes. The right next step is a single E2E script, not scattered manual calls.    
+
+  It should cover:                                                                
+                                                                                  
+  1. GET /api/excel/template/registry                                             
+  2. POST /api/excel/template/custom                                              
+  3. save the workbook locally                                                    
+  4. upload it to /api/excel/upload                                               
+  1. GET /api/excel/template/registry
+  2. POST /api/excel/template/custom
+  3. save the workbook locally
+  4. upload it to /api/excel/upload
+t
+
+  That will validate the full path: auth, template generation, metadata round-
+  trip, queueing, worker processing, persistence, and MinIO error handling.
+
+  If you want, I can add this now as something like:     
+
+  - emailservice/backend/scripts/test-excel-e2e.js       
+
+  and make it configurable with env vars for base URL, admin key, and user id.
+
+
+› i have deployed this - can you give me all the backend 
+  endpoints (payload/ response also and other things     
+  needed) of the excel features - to test using
+  postman -
+
+
+• Use base URL:
+                                                         
+  https://<your-domain> or http://<host>:4400            
+                                                         
+  All Excel routes are under:                            
+                                                         
+  /api/excel                                             
+                                                         
+  Headers                                                
+  For almost all Excel endpoints:                        
+                                                         
+  - x-admin-api-key: <EXCEL_ADMIN_API_KEY> for template  
+    generation and upload                                
+  - x-user-id: <any-user-id> required for ownership/job  
+    access                                               
+  - Content-Type depends on endpoint                     
+                                                         
+  Auth behavior                                          
+                                                         
+  - Upload/template endpoints: admin only                
+  - Job status/error download: owner or admin            
+  - If you upload with x-user-id: alice, use the same x- 
+    user-id later to fetch that job unless using admin   
+    access                                               
+                                                         
+  ———                                                    
+                                                         
+  ## 1. Get field registry                               
+                                                         
+  GET /api/excel/template/registry                       
+                                                         
+  Headers                                                
+                                                         
+  - x-admin-api-key                                      
+  - x-user-id                                            
+                                                         
+  Body                                                   
+                                                         
+  - none
+                                                         
+  Success response                                       
+                                                         
+  {                                                      
+    "presets": [                                         
+      {                                                  
+        "type": "student",                               
+        "templateName": "Student Upload Template",       
+        "uploadType": "student",                         
+        "fields": [                                      
+          {                                              
+            "key": "students.name",                      
+            "table": "students",                         
+            "field": "name",                             
+            "label": "Name",                             
+            "width": 28,                                 
+            "required": true,                            
+            "isEmail": false,                            
+            "legacyKey": "name"                          
+          }                                              
+        ]                                                
+      }                                                  
+    ],                                                   
+    "fields": {                                          
+      "students": {                                      
+        "name": {                                        
+          "label": "Name",                               
+          "width": 28,                                   
+          "requiredFor": ["student", "placement",        
+  "other"],                                              
+          "legacyKey": "name"                            
+        },                                               
+        "email": {                                       
+          "label": "Email",                              
+          "width": 32,                                   
+          "requiredFor": ["student", "placement",        
+  "other"],                                              
+          "isEmail": true,                               
+          "legacyKey": "email"                           
+        },                                               
+        "department": {                                  
+          "label": "Department",                         
+          "width": 22,                                   
+          "requiredFor": ["student", "placement"],       
+          "legacyKey": "department"                      
+        }                                                
+      },                                                 
+      "classes": {                                       
+        "className": {                                   
+          "label": "Class",                              
+          "width": 18,                                   
+          "requiredFor": ["student"],                    
+          "legacyKey": "class"                           
+        }                                                
+      },                                                 
+      "placements": {                                    
+        "company": {                                     
+          "label": "Company",                            
+          "width": 28,                                   
+          "requiredFor": []                              
+        },                                               
+        "status": {                                      
+          "label": "Status",                             
+          "width": 18,                                   
+          "requiredFor": []                              
+        }                                                
+      }                                                  
+    }                                                    
+  }                                                      
+                                                         
+  ———                                                    
+                                                         
+  ## 2. Download preset template                         
+                                                         
+  GET /api/excel/template?type=student                   
+                                                         
+  Allowed type:                                          
+                                                         
+  - student                                              
+  - placement                                            
+  - other                                                
+                                                         
+  Headers                                                
+                                                         
+  - x-admin-api-key                                      
+  - x-user-id                                            
+                                                         
+  Body                                                   
+                                                         
+  - none                                                 
+                                                         
+  Success response                                       
+                                                         
+  - Binary .xlsx download                                
+  - Content-Type: application/vnd.openxmlformats-        
+    officedocument.spreadsheetml.sheet                   
+                                                         
+  Postman
+
+  - Use Send and Download                                
+                                                         
+  Possible errors                                        
+                                                         
+  { "error": "Unknown template preset \"foo\"" }         
+                                                         
+  ———                                                    
+                                                         
+  ## 3. Generate custom template                         
+                                                         
+  POST /api/excel/template/custom                        
+                                                         
+  Headers                                                
+                                                         
+  - x-admin-api-key                                      
+  - x-user-id                                            
+  - Content-Type: application/json                       
+                                                         
+  Body                                                   
+                                                         
+  {                                                      
+    "templateName": "Custom Upload",                     
+    "uploadType": "placement",                           
+    "fields": [                                          
+      { "table": "students", "field": "name" },          
+      { "table": "students", "field": "email" },         
+      { "table": "students", "field": "department" },    
+      { "table": "placements", "field": "company" }      
+    ]                                                    
+  }                                                      
+                                                         
+  Success response                                       
+                                                         
+  - Binary .xlsx download                                
+                                                         
+  Important rules                                        
+                                                         
+  - No duplicate fields                                  
+  - Required fields for that uploadType must be included 
+  - Unknown fields are rejected                          
+                                                         
+  Possible 400 errors                                    
+                                                         
+  { "error": "Invalid template field                     
+  \"students.phone\"" }                                  
+                                                         
+  { "error": "Duplicate template field                   
+  \"students.email\"" }                                  
+                                                         
+  { "error": "Template is missing required field(s):     
+  students.email, students.department" }                 
+                                                         
+  ———                                                    
+                                                         
+  ## 4. Upload Excel file                                
+                                                         
+  POST /api/excel/upload                                 
+                                                         
+  Headers                                                
+                                                         
+  - x-admin-api-key                                      
+  - x-user-id                                            
+                                                         
+  Body                                                   
+                                                         
+  - form-data                                            
+  - key file -> file upload (.xlsx)                      
+  - key uploadType -> student or placement or other      
+                                                         
+  Postman form-data example                              
+                                                         
+  - file: select your Excel file                         
+  - uploadType: student                                  
+                                                         
+  Success response: new job                              
+                                                         
+  {                                                      
+    "message": "File uploaded. Processing started.",     
+    "duplicate": false,                                  
+    "jobId": "123",                                      
+    "fileName": "student-template.xlsx",
+    "uploadType": "student",                             
+    "statusUrl": "/api/excel/jobs/123",                  
+    "createdBy": "test-user"                             
+  }                                                      
+                                                         
+  Success response: duplicate upload                     
+                                                         
+  {                                                      
+    "message": "Duplicate file already uploaded.         
+  Returning existing job.",                              
+    "duplicate": true,                                   
+    "existingJobId": "123",                              
+    "jobId": "123",                                      
+    "fileName": "student-template.xlsx",                 
+    "uploadType": "student",                             
+    "statusUrl": "/api/excel/jobs/123",                  
+    "createdBy": "test-user"                             
+  }                                                      
+                                                         
+  Common errors                                          
+                                                         
+  { "error": "Excel file is required" }                  
+                                                         
+  { "error": "Uploaded Excel file is empty" }            
+                                                         
+  { "error": "Only .xlsx files are supported" }          
+                                                         
+  { "error": "Unsupported Excel file type" }             
+                                                         
+  { "error": "Invalid uploadType \"abc\". Allowed values:
+  student, placement, other" }                           
+                                                         
+  { "error": "Upload rate limit exceeded. Maximum 2      
+  upload(s) allowed every 60 seconds" }                  
+                                                         
+  ———                                                    
+                                                         
+  ## 5. Get job status                                   
+                                                         
+  GET /api/excel/jobs/:jobId                             
+                                                         
+  Example:                                               
+  GET /api/excel/jobs/123
+                                                         
+  Headers                                                
+                                                         
+  - x-user-id                                            
+  - x-admin-api-key optional if using admin access       
+                                                         
+  Success response                                       
+                                                         
+  {                                                      
+    "id": "67e8....",                                    
+    "jobId": "123",                                      
+    "uploadType": "student",                             
+    "status": "completed",                               
+    "progress": 100,                                     
+    "fileName": "student-template.xlsx",                 
+    "createdBy": "test-user",                            
+    "createdAt": "2026-03-30T14:10:00.000Z",             
+    "updatedAt": "2026-03-30T14:10:08.000Z",             
+    "retentionExpiresAt": "2026-04-06T14:10:00.000Z",    
+    "errorFileUrl": "/api/excel/jobs/123/error-file",    
+    "fileHash": "abc123...",                             
+    "failureReason": null,                               
+    "state": "completed",                                
+    "retry": {                                           
+      "attemptsMade": 1,                                 
+      "maxAttempts": 3,                                  
+      "remainingAttempts": 2                             
+    },                                                   
+    "summary": {                                         
+      "total": 10,                                       
+      "success": 8,                                      
+      "failed": 2,                                       
+      "processed": 10,                                   
+      "remaining": 0                                     
+    },                                                   
+    "failedPreview": [                                   
+      {                                                  
+        "rowNumber": 3,                                  
+        "name": "Bad User",                              
+        "email": "bademail",                             
+        "error": "Email format is invalid"               
+      }
+    ],                                                   
+    "links": {                                           
+      "status": "/api/excel/jobs/123",                   
+      "errorFile": "/api/excel/jobs/123/error-file"      
+    },                                                   
+    "queue": {                                           
+      "id": "123",                                       
+      "name": "process-excel",                           
+      "data": {                                          
+        "filePath": "/app/excel/uploads/....xlsx",       
+        "originalName": "student-template.xlsx",         
+        "uploadType": "student",                         
+        "createdBy": "test-user",                        
+        "fileHash": "abc123..."                          
+      },                                                 
+      "progress": 100,                                   
+      "attemptsMade": 0,                                 
+      "maxAttempts": 3,                                  
+      "timestamp": 1770000000000,                        
+      "processedOn": 1770000001000,                      
+      "finishedOn": 1770000008000                        
+    }                                                    
+  }                                                      
+                                                         
+  Status values                                          
+                                                         
+  - processing                                           
+  - completed                                            
+  - failed                                               
+                                                         
+  Possible errors                                        
+                                                         
+  { "error": "Excel job not found" }                     
+                                                         
+  { "error": "You do not have access to this Excel job" }                                                         
+  ———                                                    
+                                                         
+  ## 6. Download error file
+                                                         
+  GET /api/excel/jobs/:jobId/error-file                  
+                                                         
+  Example:                                               
+  GET /api/excel/jobs/123/error-file                     
+                                                         
+  Headers                                                
+                                                         
+  - x-user-id                                            
+  - x-admin-api-key optional if using admin access       
+
+  Success response                                       
+                                                         
+  - Binary .xlsx download                                
+                                                         
+  Use when                                               
+                                                         
+  - errorFileUrl exists in job status                    
+  - failed > 0                                           
+                                                         
+  Possible errors                                        
+                                                         
+  { "error": "Error file not found for this job" }       
+                                                         
+  ———                                                    
+                                                         
+  # Useful Postman test sequence                         
+                                                         
+  ## A. Registry                                         
+                                                         
+  1. GET /api/excel/template/registry                    
+                                                         
+  ## B. Download template                                
+                                                         
+  2. GET /api/excel/template?type=student                
+                                                         
+  ## C. Upload                                           
+                                                         
+  3. POST /api/excel/upload                              
+                                                         
+  - form-data:                                           
+      - file                                             
+      - uploadType=student                               
+                                                         
+  ## D. Poll job                                         
+                                                         
+  4. GET /api/excel/jobs/:jobId                          
+                                                         
+  Repeat until:                                          
+                                                         
+  - status = completed or failed                         
+  - progress = 100
+                                                         
+  ## E. If failed rows exist                             
+                                                         
+  5. GET /api/excel/jobs/:jobId/error-file
+                                                         
+  ———                                                    
+                                                         
+  # Good sample custom template payloads                 
+                                                         
+  ## Student                                             
+                                                         
+  {                                                      
+    "templateName": "Student Upload",                    
+    "uploadType": "student",                             
+    "fields": [                                          
+      { "table": "students", "field": "name" },          
+      { "table": "students", "field": "email" },         
+      { "table": "classes", "field": "className" },      
+      { "table": "students", "field": "department" }     
+    ]                                                    
+  }                                                      
+                                                         
+  ## Placement                                           
+                                                         
+  {                                                      
+    "templateName": "Placement Upload",                  
+    "uploadType": "placement",                           
+    "fields": [                                          
+      { "table": "students", "field": "name" },          
+      { "table": "students", "field": "email" },         
+      { "table": "students", "field": "department" },    
+      { "table": "placements", "field": "company" },     
+      { "table": "placements", "field": "status" }       
+    ]                                                    
+  }                                                      
+                                                         
+  ## Other                                               
+                                                         
+  {                                                      
+    "templateName": "Other Upload",                      
+    "uploadType": "other",                               
+    "fields": [                                          
+      { "table": "students", "field": "name" },          
+      { "table": "students", "field": "email" }          
+    ]                                                    
+  }                                                      
+                                                         
+  ———                                                    
+                                                         
+  # Environment values you need in Postman               
+                                                         
+  Set these as collection variables:                     
+                                                         
+  - base_url                                             
+  - admin_api_key                                        
+  - user_id                                              
+                                                         
+  Example:                                               
+                                                         
+  - base_url = https://your-domain.com                   
+  - admin_api_key = <your deployed EXCEL_ADMIN_API_KEY>  
+  - user_id = test-user                                  
+                                                         
+  Then use headers:                                      
+                                                         
+  - x-admin-api-key: {{admin_api_key}}                   
+  - x-user-id: {{user_id}}                               
+                                                         
+  ———                                                    
+                                                         
+  # Notes / gotchas                                      
+                                                         
+  - Upload must be .xlsx, not .xls or .csv               
+  - Template/upload uploadType must match                
+  - Duplicate upload may return old jobId                
+  - Error file only exists if invalid rows were generated  - Rate limiting may block repeated upload tests        
+  - For owner-based access, use the same x-user-id for   
+    upload and status check                              
+                                                         
+  If you want, I can format this next as a ready-to-     
+  import Postman collection JSON or as a compact markdown
+  checklist.                                             
+Token usage: total=286,638 input=221,899 (+ 5,932,288 cached) output=64,739 (reasoning 12,980)
+To continue this session, run codex resume 019d3f0e-3b36-7173-bd89-50ef779b00ff
+PS D:\nakul\email_service>
