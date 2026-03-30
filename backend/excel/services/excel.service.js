@@ -470,8 +470,7 @@ export function startExcelRetentionCleanupLoop() {
   return cleanupTimer;
 }
 
-function getValidationErrorsForUploadType(uploadType, row) {
-  const fields = arguments[2];
+function getValidationErrorsForUploadType(uploadType, row, fields) {
   const errors = fields.flatMap((field) =>
     field.required && !String(row[field.key] || "").trim()
       ? [`${field.label} is required`]
