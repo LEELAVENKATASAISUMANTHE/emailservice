@@ -1,10 +1,8 @@
-version: '3.9'
-
 services:
   pdie-backend:
     build:
-      context: ..
-      dockerfile: pdie/backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: pdie-backend
     environment:
       NODE_ENV: production
@@ -32,8 +30,8 @@ services:
 
   pdie-worker:
     build:
-      context: ..
-      dockerfile: pdie/worker/Dockerfile
+      context: ./worker
+      dockerfile: Dockerfile
     container_name: pdie-worker
     environment:
       NODE_ENV: production
@@ -50,8 +48,8 @@ services:
 
   pdie-frontend:
     build:
-      context: ..
-      dockerfile: pdie/frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: 'http://134.209.159.132:4400'
     container_name: pdie-frontend
