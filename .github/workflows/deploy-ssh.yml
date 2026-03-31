@@ -80,10 +80,14 @@ jobs:
               docker compose down --remove-orphans || true
               BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL=http://134.209.159.132:5400 \
                 docker compose -f pdie/docker-compose.yml down --remove-orphans || true
-              docker rm -f emailservice-excel-backend emailservice-excel-worker emailservice-email-consumer || true
+              docker rm -f emailservice-excel-backend emailservice-excel-worker emailservice-email-consumer >/dev/null 2>&1 || true
 
               echo '🧱 Rebuilding everything fresh...'
-                                          docker compose up -d --build --force-recreate \
+              export DOCKER_BUILDKIT=0
+              export COMPOSE_DOCKER_CLI_BUILD=0
+              docker builder prune -af >/dev/null 2>&1 || true
+
+              docker compose up -d --build --force-recreate \
                 backend frontend email-consumer metabase minio
               BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL=http://134.209.159.132:5400 \
                 docker compose -f pdie/docker-compose.yml up -d --build --force-recreate
