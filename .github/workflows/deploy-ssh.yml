@@ -79,6 +79,7 @@ jobs:
               echo '🧹 Stopping old containers...'
               docker compose down --remove-orphans || true
               docker compose -f pdie/docker-compose.yml down --remove-orphans || true
+              docker rm -f emailservice-excel-backend emailservice-excel-worker emailservice-email-consumer || true
 
               echo '🧱 Rebuilding everything fresh...'
               docker compose up -d --build --force-recreate
