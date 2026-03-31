@@ -78,14 +78,14 @@ jobs:
 
               echo '🧹 Stopping old containers...'
               docker compose down --remove-orphans || true
+              docker compose -f pdie/docker-compose.yml down --remove-orphans || true
 
               echo '🧱 Rebuilding everything fresh...'
               docker compose up -d --build --force-recreate
+              docker compose -f pdie/docker-compose.yml up -d --build --force-recreate
 
-              docker logs nifi | grep -i 'Started Server' || true
-
-              echo '🌐 Testing NiFi endpoint...'
-              curl -s http://localhost:8090 || echo 'NiFi not responding yet'
+              echo '🌐 Testing PDIE backend health endpoint...'
+              curl -sf http://localhost:4400/health || echo 'PDIE backend not responding yet'
 
               echo '✅ Deployment completed on ${host}'
             "
