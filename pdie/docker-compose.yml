@@ -4,24 +4,27 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: pdie-backend
+    restart: unless-stopped
     environment:
-      NODE_ENV: production
-      PORT: 4000
-      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/placement_erp
-      POSTGRES_SCHEMA: public
-      MONGODB_URI: mongodb://mongodb:27017/placement_erp
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: 9000
-      MINIO_USE_SSL: 'false'
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_TEMPLATES_BUCKET: pdie-templates
-      MINIO_UPLOADS_BUCKET: pdie-uploads
-      MINIO_PROCESSED_BUCKET: pdie-processed
-      MINIO_FAILED_BUCKET: pdie-failed
-      REDPANDA_CLIENT_ID: placement-approval-service
-      REDPANDA_BROKERS: redpanda:9092
-      REDPANDA_UPLOAD_TOPIC: pdie.uploads
+      NODE_ENV: ${PDIE_NODE_ENV:-production}
+      PORT: ${PDIE_BACKEND_PORT:-4000}
+      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/placement_erp}
+      POSTGRES_SCHEMA: ${PDIE_POSTGRES_SCHEMA:-public}
+      MONGODB_URI: ${PDIE_MONGODB_URI:-mongodb://mongodb:27017/placement_erp}
+      MINIO_ENDPOINT: ${PDIE_MINIO_ENDPOINT:-minio}
+      MINIO_PORT: ${PDIE_MINIO_PORT:-9000}
+      MINIO_USE_SSL: ${PDIE_MINIO_USE_SSL:-false}
+      MINIO_ACCESS_KEY: ${PDIE_MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${PDIE_MINIO_SECRET_KEY:-minioadmin}
+      MINIO_TEMPLATES_BUCKET: ${PDIE_MINIO_TEMPLATES_BUCKET:-pdie-templates}
+      MINIO_UPLOADS_BUCKET: ${PDIE_MINIO_UPLOADS_BUCKET:-pdie-uploads}
+      MINIO_PROCESSED_BUCKET: ${PDIE_MINIO_PROCESSED_BUCKET:-pdie-processed}
+      MINIO_FAILED_BUCKET: ${PDIE_MINIO_FAILED_BUCKET:-pdie-failed}
+      REDPANDA_CLIENT_ID: ${PDIE_REDPANDA_CLIENT_ID:-placement-approval-service}
+      REDPANDA_BROKERS: ${PDIE_REDPANDA_BROKERS:-redpanda:9092}
+      REDPANDA_UPLOAD_TOPIC: ${PDIE_REDPANDA_UPLOAD_TOPIC:-pdie.uploads}
+      STARTUP_RETRY_ATTEMPTS: ${PDIE_STARTUP_RETRY_ATTEMPTS:-30}
+      STARTUP_RETRY_DELAY_MS: ${PDIE_STARTUP_RETRY_DELAY_MS:-2000}
     ports:
       - '${BACKEND_HOST_PORT:-5400}:4000'
     networks:
@@ -33,15 +36,18 @@ services:
       context: ./worker
       dockerfile: Dockerfile
     container_name: pdie-worker
+    restart: unless-stopped
     environment:
-      NODE_ENV: production
-      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/placement_erp
-      POSTGRES_SCHEMA: public
-      MONGODB_URI: mongodb://mongodb:27017/placement_erp
-      REDPANDA_WORKER_CLIENT_ID: placement-approval-service-worker
-      REDPANDA_WORKER_GROUP_ID: placement-approval-workers
-      REDPANDA_BROKERS: redpanda:9092
-      REDPANDA_UPLOAD_TOPIC: pdie.uploads
+      NODE_ENV: ${PDIE_NODE_ENV:-production}
+      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/placement_erp}
+      POSTGRES_SCHEMA: ${PDIE_POSTGRES_SCHEMA:-public}
+      MONGODB_URI: ${PDIE_MONGODB_URI:-mongodb://mongodb:27017/placement_erp}
+      REDPANDA_WORKER_CLIENT_ID: ${PDIE_REDPANDA_WORKER_CLIENT_ID:-placement-approval-service-worker}
+      REDPANDA_WORKER_GROUP_ID: ${PDIE_REDPANDA_WORKER_GROUP_ID:-placement-approval-workers}
+      REDPANDA_BROKERS: ${PDIE_REDPANDA_BROKERS:-redpanda:9092}
+      REDPANDA_UPLOAD_TOPIC: ${PDIE_REDPANDA_UPLOAD_TOPIC:-pdie.uploads}
+      STARTUP_RETRY_ATTEMPTS: ${PDIE_STARTUP_RETRY_ATTEMPTS:-30}
+      STARTUP_RETRY_DELAY_MS: ${PDIE_STARTUP_RETRY_DELAY_MS:-2000}
     networks:
       - erp-core-net
       - redis-core-network
@@ -53,6 +59,7 @@ services:
       args:
         VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://134.209.159.132:5400}"
     container_name: pdie-frontend
+    restart: unless-stopped
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://134.209.159.132:5400}
     ports:

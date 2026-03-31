@@ -8,6 +8,7 @@ import { connectMongo } from './db/mongo.js';
 import { pgPool } from './db/postgres.js';
 import { ensureBuckets } from './storage/minio.js';
 import { logger } from './utils/logger.js';
+import { retryStartupStep } from './utils/retry.js';
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -23,9 +24,14 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const start = async () => {
-  await connectMongo();
-  await pgPool.query('SELECT 1');
-  await ensureBuckets();
+  const retryOptions = {
+    attempts: config.app.startupRetryAttempts,
+    delayMs: config.app.startupRetryDelayMs
+  };
+
+  await retryStartupStep('MongoDB', () => connectMongo(), retryOptions);
+  await retryStartupStep('PostgreSQL', () => pgPool.query('SELECT 1'), retryOptions);
+  await retryStartupStep('MinIO', () => ensureBuckets(), retryOptions);
 
   app.listen(config.app.port, () => {
     logger.info(`PDIE backend listening on port ${config.app.port}`);

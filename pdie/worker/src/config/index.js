@@ -11,7 +11,9 @@ const required = (value, name) => {
 
 export const config = {
   app: {
-    nodeEnv: process.env.NODE_ENV || 'development'
+    nodeEnv: process.env.NODE_ENV || 'development',
+    startupRetryAttempts: Number(process.env.STARTUP_RETRY_ATTEMPTS) || 30,
+    startupRetryDelayMs: Number(process.env.STARTUP_RETRY_DELAY_MS) || 2000
   },
   postgres: {
     connectionString: required(process.env.POSTGRES_URL, 'POSTGRES_URL'),

@@ -13,7 +13,12 @@ export const connectMongo = async () => {
     autoIndex: false,
     maxPoolSize: 10
   });
-  return connectionPromise;
+  try {
+    return await connectionPromise;
+  } catch (err) {
+    connectionPromise = null;
+    throw err;
+  }
 };
 
 export const disconnectMongo = async () => mongoose.connection.close();
