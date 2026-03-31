@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  pdie-backend:
+    build:
+      context: ..
+      dockerfile: pdie/backend/Dockerfile
+    container_name: pdie-backend
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/placement_erp
+      POSTGRES_SCHEMA: public
+      MONGODB_URI: mongodb://mongodb:27017/placement_erp
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: 'false'
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_TEMPLATES_BUCKET: pdie-templates
+      MINIO_UPLOADS_BUCKET: pdie-uploads
+      MINIO_PROCESSED_BUCKET: pdie-processed
+      MINIO_FAILED_BUCKET: pdie-failed
+      REDPANDA_CLIENT_ID: placement-approval-service
+      REDPANDA_BROKERS: redpanda:9092
+      REDPANDA_UPLOAD_TOPIC: pdie.uploads
+    ports:
+      - '${BACKEND_HOST_PORT:-4400}:4000'
+    networks:
+      - erp-core-net
+      - redis-core-network
+
+  pdie-worker:
+    build:
+      context: ..
+      dockerfile: pdie/worker/Dockerfile
+    container_name: pdie-worker
+    environment:
+      NODE_ENV: production
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/placement_erp
+      POSTGRES_SCHEMA: public
+      MONGODB_URI: mongodb://mongodb:27017/placement_erp
+      REDPANDA_WORKER_CLIENT_ID: placement-approval-service-worker
+      REDPANDA_WORKER_GROUP_ID: placement-approval-workers
+      REDPANDA_BROKERS: redpanda:9092
+      REDPANDA_UPLOAD_TOPIC: pdie.uploads
+    networks:
+      - erp-core-net
+      - redis-core-network
+
+  pdie-frontend:
+    build:
+      context: ..
+      dockerfile: pdie/frontend/Dockerfile
+      args:
+        VITE_API_URL: 'http://134.209.159.132:4400'
+    container_name: pdie-frontend
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_URL:-http://134.209.159.132:4400}
+    ports:
+      - '${FRONTEND_HOST_PORT:-3300}:80'
+    depends_on:
+      - pdie-backend
+    networks:
+      - erp-core-net
+      - redis-core-network
+
+networks:
+  erp-core-net:
+    external: true
+  redis-core-network:
+    external: true

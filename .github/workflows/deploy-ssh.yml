@@ -62,6 +62,11 @@ jobs:
               --exclude "backend/node_modules/" \
               --exclude "frontend/node_modules/" \
               --exclude "email-consumer/node_modules/" \
+              --exclude "excel-service/" \
+              --exclude "pdie/node_modules/" \
+              --exclude "pdie/**/node_modules/" \
+              --exclude "pdie/frontend/dist/" \
+              --exclude "pdie/.env" \
               --exclude "frontend/.next/" \
               -e "ssh -p ${DEPLOY_PORT}" \
               ./ "${{ secrets.DEPLOY_SSH_USER }}@${host}:${DEPLOY_PATH}/"
