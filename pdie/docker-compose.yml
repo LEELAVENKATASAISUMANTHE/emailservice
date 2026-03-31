@@ -9,7 +9,7 @@ services:
       NODE_ENV: ${PDIE_NODE_ENV:-production}
       PORT: ${PDIE_BACKEND_PORT:-4000}
       CORS_ORIGINS: ${PDIE_CORS_ORIGINS:-http://localhost:5173,http://localhost:5300,http://134.209.159.132:5300}
-      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/placement_erp}
+      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@172.17.0.1:5432/placement_erp}
       POSTGRES_SCHEMA: ${PDIE_POSTGRES_SCHEMA:-public}
       MONGODB_URI: ${PDIE_MONGODB_URI:-mongodb://mongodb:27017/placement_erp}
       MINIO_ENDPOINT: ${PDIE_MINIO_ENDPOINT:-minio}
@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: ${PDIE_NODE_ENV:-production}
-      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/placement_erp}
+      POSTGRES_URL: ${PDIE_POSTGRES_URL:-postgresql://postgres:postgres@172.17.0.1:5432/placement_erp}
       POSTGRES_SCHEMA: ${PDIE_POSTGRES_SCHEMA:-public}
       MONGODB_URI: ${PDIE_MONGODB_URI:-mongodb://mongodb:27017/placement_erp}
       REDPANDA_WORKER_CLIENT_ID: ${PDIE_REDPANDA_WORKER_CLIENT_ID:-placement-approval-service-worker}
