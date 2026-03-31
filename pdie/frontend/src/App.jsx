@@ -6,8 +6,11 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || ''
 });
 
-const Section = ({ title, icon: Icon, children }) => (
-  <section className="rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 p-8 shadow-2xl shadow-black/50">
+const Section = ({ title, icon: Icon, children, ...rest }) => (
+  <section
+    className="rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 p-8 shadow-2xl shadow-black/50"
+    {...rest}
+  >
     <header className="mb-6 flex items-center gap-3">
       <Icon className="h-6 w-6 text-accent" />
       <h2 className="text-xl font-semibold tracking-tight text-white">{title}</h2>
@@ -28,6 +31,7 @@ function App() {
   const [uploadResult, setUploadResult] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const canUpload = Boolean(uploadFile) && !uploading;
 
   useEffect(() => {
     let mounted = true;
@@ -218,7 +222,7 @@ function App() {
             )}
           </Section>
 
-          <Section title="Upload Processor" icon={UploadCloud}>
+          <Section title="Upload Processor" icon={UploadCloud} onMouseDown={() => setTablesOpen(false)}>
             <form className="space-y-6" onSubmit={handleUpload}>
               <label className="block text-sm font-medium text-slate-300">
                 Excel file generated from PDIE template
@@ -230,10 +234,13 @@ function App() {
                   className="mt-2 w-full rounded-2xl border border-dashed border-white/20 bg-white/5 px-4 py-5 text-white outline-none transition"
                 />
               </label>
+              {!uploadFile && (
+                <p className="text-xs text-slate-400">Choose a template-generated .xlsx file to enable upload.</p>
+              )}
               <button
                 type="submit"
                 className="inline-flex items-center justify-center rounded-2xl bg-white/90 px-5 py-3 font-semibold text-slate-900 transition hover:bg-white"
-                disabled={uploading}
+                disabled={!canUpload}
               >
                 {uploading ? 'Uploading…' : 'Validate & ingest'}
               </button>
