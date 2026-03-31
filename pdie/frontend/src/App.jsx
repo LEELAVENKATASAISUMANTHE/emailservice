@@ -74,6 +74,17 @@ function App() {
       const body = { tables: selectedTables };
       const { data } = await api.post('/api/templates', body);
       setTemplate(data);
+      const response = await api.get(`/api/templates/${data.templateId}/download`, {
+        responseType: 'blob'
+      });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${data.templateId}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       setError(err.response?.data?.message || err.message);
     } finally {
