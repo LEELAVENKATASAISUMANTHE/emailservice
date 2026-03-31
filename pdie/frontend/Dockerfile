@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1.6
 FROM node:20-alpine AS build
+ARG VITE_API_BASE_URL=http://localhost:4000
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
