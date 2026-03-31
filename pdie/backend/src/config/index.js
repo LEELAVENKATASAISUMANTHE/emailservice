@@ -16,6 +16,12 @@ export const config = {
     startupRetryAttempts: Number(process.env.STARTUP_RETRY_ATTEMPTS) || 30,
     startupRetryDelayMs: Number(process.env.STARTUP_RETRY_DELAY_MS) || 2000
   },
+  cors: {
+    origins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5300,http://134.209.159.132:5300')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  },
   postgres: {
     connectionString: required(process.env.POSTGRES_URL, 'POSTGRES_URL'),
     schema: process.env.POSTGRES_SCHEMA || 'public'
