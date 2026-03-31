@@ -37,6 +37,21 @@ export const fetchTableColumns = async (tables) => {
   }, {});
 };
 
+export const fetchTables = async () => {
+  const result = await pool.query(
+    `
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = $1
+      AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+    `,
+    [config.postgres.schema]
+  );
+
+  return result.rows.map((row) => row.table_name);
+};
+
 export const fetchRelationships = async (tables) => {
   const result = await pool.query(
     `

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { UploadCloud, FileSpreadsheet, ListChecks } from 'lucide-react';
 
@@ -17,7 +17,10 @@ const Section = ({ title, icon: Icon, children }) => (
 );
 
 function App() {
-  const [tables, setTables] = useState('students,placements');
+  const [availableTables, setAvailableTables] = useState([]);
+  const [selectedTables, setSelectedTables] = useState([]);
+  const [tablesOpen, setTablesOpen] = useState(false);
+  const [tablesLoading, setTablesLoading] = useState(false);
   const [template, setTemplate] = useState(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
@@ -25,12 +28,50 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadTables = async () => {
+      setTablesLoading(true);
+      try {
+        const { data } = await api.get('/api/tables');
+        if (mounted) {
+          setAvailableTables(Array.isArray(data.tables) ? data.tables : []);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err.response?.data?.message || err.message);
+        }
+      } finally {
+        if (mounted) {
+          setTablesLoading(false);
+        }
+      }
+    };
+
+    loadTables();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const toggleTable = (table) => {
+    setSelectedTables((current) => {
+      if (current.includes(table)) {
+        return current.filter((item) => item !== table);
+      }
+      return [...current, table];
+    });
+  };
+
   const requestTemplate = async (event) => {
     event.preventDefault();
     setTemplateLoading(true);
     setError(null);
     try {
-      const body = { tables: tables.split(',').map((name) => name.trim()).filter(Boolean) };
+      if (!selectedTables.length) {
+        throw new Error('Select at least one table.');
+      }
+      const body = { tables: selectedTables };
       const { data } = await api.post('/api/templates', body);
       setTemplate(data);
     } catch (err) {
@@ -80,15 +121,48 @@ function App() {
         <div className="grid gap-8 lg:grid-cols-2">
           <Section title="Template Builder" icon={FileSpreadsheet}>
             <form className="space-y-6" onSubmit={requestTemplate}>
-              <label className="block text-sm font-medium text-slate-300">
-                Target tables (comma-separated)
-                <input
-                  type="text"
-                  value={tables}
-                  onChange={(event) => setTables(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-accent/70"
-                />
-              </label>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-300">Target tables</p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTablesOpen((open) => !open)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white transition focus:border-accent/70"
+                  >
+                    <span>
+                      {selectedTables.length
+                        ? selectedTables.join(', ')
+                        : tablesLoading
+                          ? 'Loading tables...'
+                          : 'Select tables'}
+                    </span>
+                    <span className="text-slate-400">{tablesOpen ? '▴' : '▾'}</span>
+                  </button>
+                  {tablesOpen && (
+                    <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-xl">
+                      {tablesLoading && (
+                        <p className="text-sm text-slate-400">Loading...</p>
+                      )}
+                      {!tablesLoading && !availableTables.length && (
+                        <p className="text-sm text-slate-400">No tables found.</p>
+                      )}
+                      <div className="space-y-2">
+                        {availableTables.map((table) => (
+                          <label key={table} className="flex items-center gap-3 text-sm text-slate-200">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-accent"
+                              checked={selectedTables.includes(table)}
+                              onChange={() => toggleTable(table)}
+                            />
+                            {table}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <button
                 type="submit"
                 className="inline-flex items-center justify-center rounded-2xl bg-accent px-5 py-3 font-semibold text-slate-900 transition hover:bg-accent/80"
