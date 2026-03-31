@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { UploadCloud, FileSpreadsheet, ListChecks } from 'lucide-react';
 
@@ -21,6 +21,7 @@ function App() {
   const [selectedTables, setSelectedTables] = useState([]);
   const [tablesOpen, setTablesOpen] = useState(false);
   const [tablesLoading, setTablesLoading] = useState(false);
+  const tablesRef = useRef(null);
   const [template, setTemplate] = useState(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
@@ -54,6 +55,19 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!tablesRef.current) return;
+      if (!tablesRef.current.contains(event.target)) {
+        setTablesOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
+
   const toggleTable = (table) => {
     setSelectedTables((current) => {
       if (current.includes(table)) {
@@ -71,6 +85,7 @@ function App() {
       if (!selectedTables.length) {
         throw new Error('Select at least one table.');
       }
+      setTablesOpen(false);
       const body = { tables: selectedTables };
       const { data } = await api.post('/api/templates', body);
       setTemplate(data);
@@ -100,6 +115,8 @@ function App() {
     }
     setUploading(true);
     setError(null);
+    setUploadResult(null);
+    setTablesOpen(false);
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
@@ -134,7 +151,7 @@ function App() {
             <form className="space-y-6" onSubmit={requestTemplate}>
               <div className="space-y-2">
                 <p className="text-sm font-medium text-slate-300">Target tables</p>
-                <div className="relative">
+                <div className="relative" ref={tablesRef}>
                   <button
                     type="button"
                     onClick={() => setTablesOpen((open) => !open)}
@@ -209,6 +226,7 @@ function App() {
                   type="file"
                   accept=".xlsx"
                   onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
+                  onClick={() => setTablesOpen(false)}
                   className="mt-2 w-full rounded-2xl border border-dashed border-white/20 bg-white/5 px-4 py-5 text-white outline-none transition"
                 />
               </label>
