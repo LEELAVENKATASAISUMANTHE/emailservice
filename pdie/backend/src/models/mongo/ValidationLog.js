@@ -9,7 +9,7 @@ const ValidationLogSchema = new mongoose.Schema(
     errors: [{ type: String, required: true }],
     payload: { type: Object }
   },
-  { timestamps: true, collection: 'validation_logs' }
+  { timestamps: true, collection: 'validation_logs', suppressReservedKeysWarning: true }
 );
 
 export const ValidationLogModel = mongoose.model('ValidationLog', ValidationLogSchema);

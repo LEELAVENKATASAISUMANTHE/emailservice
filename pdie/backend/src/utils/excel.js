@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 
 const workbookOptions = {
   entries: 'emit',
+  worksheets: 'emit',
   sharedStrings: 'cache',
   hyperlinks: 'cache',
   styles: 'cache'
@@ -22,6 +23,14 @@ export const readTemplateMetadata = (filePath) =>
       }
     };
 
+    // Safety timeout: if nothing resolves/rejects within 30s, resolve with whatever we have
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(metadata);
+      }
+    }, 30_000);
+
     reader.on('worksheet', (worksheet) => {
       if (worksheet.name !== '_meta') {
         worksheet.on('finished', () => {});
@@ -31,20 +40,40 @@ export const readTemplateMetadata = (filePath) =>
       worksheet.on('row', (row) => {
         const key = row.getCell(1).text;
         const value = row.getCell(2).text;
-        if (key) {
+        if (key && key !== 'key') {
           metadata[key] = value;
         }
       });
-      worksheet.on('finished', finish);
+      worksheet.on('finished', () => {
+        clearTimeout(timeout);
+        finish();
+      });
     });
 
-    reader.on('end', finish);
+    reader.on('end', () => {
+      clearTimeout(timeout);
+      finish();
+    });
     reader.on('error', (err) => {
+      clearTimeout(timeout);
       if (!resolved) {
         resolved = true;
         reject(err);
       }
     });
+
+    stream.on('error', (err) => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        resolved = true;
+        reject(err);
+      }
+    });
+
+    // Kick off the reader (required in some ExcelJS versions)
+    if (typeof reader.read === 'function') {
+      reader.read();
+    }
   });
 
 export const streamExcelRows = ({ filePath, onHeader, onRowsChunk, chunkSize = 1000 }) =>
@@ -53,12 +82,12 @@ export const streamExcelRows = ({ filePath, onHeader, onRowsChunk, chunkSize = 1
     const reader = new ExcelJS.stream.xlsx.WorkbookReader(stream, workbookOptions);
     const worksheetChains = [];
     let resolved = false;
+    let rejected = false;
 
     const finish = () => {
-      if (!resolved) {
-        resolved = true;
-        Promise.all(worksheetChains).then(() => resolve()).catch(reject);
-      }
+      if (resolved || rejected) return;
+      resolved = true;
+      Promise.all(worksheetChains).then(() => resolve()).catch(reject);
     };
 
     reader.on('worksheet', (worksheet) => {
@@ -73,7 +102,13 @@ export const streamExcelRows = ({ filePath, onHeader, onRowsChunk, chunkSize = 1
       let chain = Promise.resolve();
 
       const enqueue = (task) => {
-        chain = chain.then(task);
+        chain = chain.then(task).catch((err) => {
+          if (!rejected) {
+            rejected = true;
+            reject(err);
+          }
+          throw err;
+        });
       };
 
       const flushBuffer = () => {
@@ -118,9 +153,21 @@ export const streamExcelRows = ({ filePath, onHeader, onRowsChunk, chunkSize = 1
 
     reader.on('end', finish);
     reader.on('error', (err) => {
-      if (!resolved) {
-        resolved = true;
+      if (!resolved && !rejected) {
+        rejected = true;
         reject(err);
       }
     });
+
+    stream.on('error', (err) => {
+      if (!resolved && !rejected) {
+        rejected = true;
+        reject(err);
+      }
+    });
+
+    // Kick off the reader
+    if (typeof reader.read === 'function') {
+      reader.read();
+    }
   });

@@ -3,7 +3,7 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { TemplateModel } from '../models/mongo/Template.js';
 import { validateRows } from './validation.service.js';
-import { insertRowsForTable } from './ingest.service.js';
+import { insertRowsMultiTable } from './ingest.service.js';
 import { logProcessing, logValidationErrors, persistFailedChunk, decrementPendingChunk } from './logging.service.js';
 
 const kafka = new Kafka({
@@ -55,10 +55,9 @@ export const startWorker = async () => {
           await decrementPendingChunk({ uploadId });
           return;
         }
-        const primaryTable = template.tables[0];
-        const columns = template.metadata.columnsByTable[primaryTable] || [];
-        const { inserted } = await insertRowsForTable({ table: primaryTable, columns, rows: validRows });
-        await logProcessing({ uploadId, stage: 'worker', message: 'Chunk ingested', metadata: { chunkId, inserted } });
+
+        const { results, totalInserted } = await insertRowsMultiTable({ template, rows: validRows });
+        await logProcessing({ uploadId, stage: 'worker', message: 'Chunk ingested (multi-table)', metadata: { chunkId, results, totalInserted } });
         await decrementPendingChunk({ uploadId });
       } catch (err) {
         logger.error({ err, uploadId, chunkId }, 'Worker failed to process chunk');

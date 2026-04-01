@@ -2,15 +2,18 @@ import mongoose from 'mongoose';
 
 const UploadSchema = new mongoose.Schema(
   {
-    uploadId: { type: String, required: true, unique: true },
-    templateId: { type: String, required: true },
+    uploadId: { type: String, required: true, unique: true, index: true },
+    templateId: { type: String, required: true, index: true },
     fileKey: { type: String, required: true },
-    fileHash: { type: String, required: true },
+    fileHash: { type: String, required: true, index: true },
+    originalFileName: { type: String },
+    fileSize: { type: Number, default: 0 },
     rowCount: { type: Number, required: true },
     status: {
       type: String,
       enum: ['pending', 'validating', 'validated', 'processing', 'completed', 'failed'],
-      default: 'pending'
+      default: 'pending',
+      index: true
     },
     processingMode: {
       type: String,
