@@ -3,8 +3,6 @@ services:
     image: mongo:7
     container_name: pdie-mongo
     restart: unless-stopped
-    ports:
-      - '${MONGO_HOST_PORT:-27017}:27017'
     volumes:
       - pdie-mongo-data:/data/db
 
@@ -16,9 +14,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    ports:
-      - '${MINIO_API_HOST_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_HOST_PORT:-9001}:9001'
     volumes:
       - pdie-minio-data:/data
 
@@ -39,8 +34,6 @@ services:
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
       - --pandaproxy-addr=PLAINTEXT://0.0.0.0:8082
       - --advertise-pandaproxy-addr=PLAINTEXT://redpanda:8082
-    ports:
-      - '${REDPANDA_HOST_PORT:-19092}:19092'
 
   pdie-backend:
     build:
