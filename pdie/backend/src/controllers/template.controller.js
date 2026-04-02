@@ -3,6 +3,11 @@ import { getObjectStream } from '../db/minio.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { ensureTemplate } from '../services/template.service.js';
 
+export const listTemplates = async (req, res) => {
+  const templates = await TemplateModel.find({}).sort({ createdAt: -1 });
+  res.json(templates);
+};
+
 const sanitizeFilename = (value) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
 
 export const generateTemplate = async (req, res) => {

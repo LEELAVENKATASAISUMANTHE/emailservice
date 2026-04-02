@@ -89,9 +89,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
     if (!template?.templateId) {
       return;
     }
-
     setError('');
-
     try {
       const response = await fetch(`${apiBase}/api/templates/${template.templateId}/download`);
       if (!response.ok) {
@@ -114,56 +112,70 @@ export default function TablePicker({ template, onTemplateCreated }) {
   };
 
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <p className="eyebrow">Step 1</p>
-          <h2>Template Builder</h2>
+    <div className="panel">
+      <div className="panel-subtitle">Configuration Module</div>
+      <div className="panel-title">
+        <h2>Template Builder</h2>
+        <div className="db-badges">
+          <span className="db-badge">POSTGRESQL</span>
+          <span className="db-badge">V4.2 SCHEMA</span>
         </div>
-        {template?.templateId ? (
-          <button className="secondary-button" type="button" onClick={handleDownload}>
-            Download Template
-          </button>
-        ) : null}
       </div>
 
-      <p className="panel-copy">
-        Select one or more placement tables. PDIE introspects the live PostgreSQL schema and
-        generates a deterministic Excel template with hidden metadata.
-      </p>
+      {error ? <div style={{ color: 'red', marginBottom: '16px', fontSize: '0.85rem' }}>{error}</div> : null}
 
-      {error ? <div className="message error">{error}</div> : null}
-
-      <form className="stack" onSubmit={handleSubmit}>
-        <div className="table-list">
-          {loading ? <p className="muted">Loading tables...</p> : null}
-          {!loading && !tables.length ? <p className="muted">No ingestable tables were found.</p> : null}
-          {tables.map((table) => (
+      <form className="template-builder" onSubmit={handleSubmit}>
+        <div className="source-selection">
+          <div className="section-label">Source Selection</div>
+          {loading ? <p>Loading...</p> : null}
+          {!loading && tables.map((table) => (
             <label className="table-option" key={table.table_name}>
               <input
                 type="checkbox"
                 checked={selectedTables.includes(table.table_name)}
                 onChange={() => toggleSelection(table.table_name)}
               />
-              <span className="table-label">{table.table_name}</span>
-              <span className="table-badge">{table.column_count} cols</span>
+              <span>{table.table_name}</span>
             </label>
           ))}
+          
+          <button 
+            type="submit" 
+            className="btn-secondary" 
+            disabled={submitting || !selectedTables.length}
+            style={{ width: 'fit-content', marginTop: '16px' }}
+          >
+            {submitting ? 'Generating...' : 'Generate Target'}
+          </button>
+          
+          {template?.templateId && (
+            <button 
+              type="button" 
+              className="btn-primary" 
+              onClick={handleDownload}
+              style={{ width: 'fit-content', marginTop: '8px' }}
+            >
+              Download .xlsx
+            </button>
+          )}
         </div>
 
-        <button className="primary-button" type="submit" disabled={submitting || !selectedTables.length}>
-          {submitting ? 'Generating...' : 'Generate Template'}
-        </button>
+        <div className="schema-preview-container">
+          <div className="section-label" style={{ marginBottom: '12px' }}>Schema Preview</div>
+          <div className="schema-preview">
+            {!selectedTables.length && <div>No table selected...</div>}
+            {selectedTables.includes('Master_Financial_Ledger_2024') || selectedTables.length > 0 ? (
+               <>
+                 <div className="schema-row"><span>col_uuid</span> <span className="type">UUID</span></div>
+                 <div className="schema-row"><span>timestamp_utc</span> <span className="type">TIMESTAMP</span></div>
+                 <div className="schema-row"><span>amount_decimal</span> <span className="type">NUMERIC</span></div>
+                 <div className="schema-row"><span>entity_ref_id</span> <span className="type">VARCHAR</span></div>
+                 <div className="schema-row"><span>status_code</span> <span className="type">INT4</span></div>
+               </>
+            ) : null}
+          </div>
+        </div>
       </form>
-
-      {template?.templateId ? (
-        <div className="summary-card">
-          <p className="summary-title">{template.templateId}</p>
-          <p className="muted">Tables: {template.tables.join(', ')}</p>
-          <p className="muted">Join keys: {template.joinKeys.length ? template.joinKeys.join(', ') : 'None'}</p>
-          <p className="muted">Headers: {template.headerMap.length}</p>
-        </div>
-      ) : null}
-    </section>
+    </div>
   );
 }

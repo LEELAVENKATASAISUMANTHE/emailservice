@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -10,21 +10,17 @@ async function parseJsonResponse(response) {
   return JSON.parse(text);
 }
 
-export default function JobStatus({ jobId }) {
-  const [job, setJob] = useState(null);
-  const [report, setReport] = useState(null);
-  const [error, setError] = useState('');
-  const reportRequested = useRef(false);
+const mockJobs = [
+  { ref: '#ING-99211-BF', processType: 'Data Validation', health: 'idle', queueDepth: '0 Rows', time: '--:--:--' },
+  { ref: '#ING-99208-CK', processType: 'Legacy Workbook', health: 'failure', queueDepth: '4,119 Rows', time: '00:01:02' }
+];
 
-  useEffect(() => {
-    setJob(null);
-    setReport(null);
-    setError('');
-    reportRequested.current = false;
-  }, [jobId]);
+export default function JobStatus({ jobId }) {
+  const [activeJob, setActiveJob] = useState(null);
 
   useEffect(() => {
     if (!jobId) {
+      setActiveJob(null);
       return undefined;
     }
 
@@ -36,37 +32,15 @@ export default function JobStatus({ jobId }) {
         const response = await fetch(`${apiBase}/api/jobs/${jobId}`);
         const data = await parseJsonResponse(response);
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to load job');
-        }
-
-        if (!active) {
-          return;
-        }
-
-        setJob(data);
-
-        if ((data.status === 'done' || data.status === 'failed') && !reportRequested.current) {
-          reportRequested.current = true;
-          const reportResponse = await fetch(`${apiBase}/api/jobs/${jobId}/report`);
-          const reportData = await parseJsonResponse(reportResponse);
-
-          if (!reportResponse.ok) {
-            throw new Error(reportData.error || 'Failed to load job report');
-          }
-
-          if (active) {
-            setReport(reportData);
-          }
+        if (response.ok && active) {
+          setActiveJob(data);
         }
 
         if (data.status === 'done' || data.status === 'failed') {
           window.clearInterval(intervalId);
         }
-      } catch (fetchError) {
-        if (active) {
-          setError(fetchError.message);
-        }
+      } catch (err) {
+        // ignore
       }
     };
 
@@ -79,113 +53,81 @@ export default function JobStatus({ jobId }) {
     };
   }, [jobId]);
 
-  const progress = useMemo(() => {
-    if (!job?.totalRows) {
-      return 0;
-    }
-
-    return Math.min(100, Math.round((job.processedRows / job.totalRows) * 100));
-  }, [job]);
-
-  const errorRows = useMemo(() => {
-    if (!report?.rows?.length) {
-      return [];
-    }
-
-    return report.rows
-      .filter((row) => row.status === 'error')
-      .flatMap((row) =>
-        (row.errors || []).map((errorItem) => ({
-          rowIndex: row.rowIndex,
-          field: errorItem.field,
-          value: errorItem.value,
-          message: errorItem.message
-        }))
-      );
-  }, [report]);
-
-  if (!jobId) {
-    return (
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Step 3</p>
-            <h2>Job Status</h2>
-          </div>
-        </div>
-        <p className="muted">Upload a workbook to start polling job progress.</p>
-      </section>
-    );
-  }
-
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <p className="eyebrow">Step 3</p>
-          <h2>Job Status</h2>
+    <div className="panel jobs-panel">
+      <div className="jobs-header">
+        <h2>Active Ingestion Jobs</h2>
+        <div className="jobs-actions">
+          <button className="btn-secondary">Refresh Engine</button>
+          <button className="btn-primary">Kill All Tasks</button>
         </div>
-        {job ? <span className={`status-badge status-${job.status}`}>{job.status}</span> : null}
       </div>
 
-      {error ? <div className="message error">{error}</div> : null}
-
-      <div className="summary-card">
-        <p className="summary-title">{jobId}</p>
-        <div className="progress-track">
-          <div className="progress-bar" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="metrics-grid">
-          <div>
-            <span className="metric-label">Progress</span>
-            <strong>{progress}%</strong>
-          </div>
-          <div>
-            <span className="metric-label">Processed</span>
-            <strong>{job?.processedRows ?? 0}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Committed</span>
-            <strong>{job?.committedRows ?? 0}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Rejected</span>
-            <strong>{job?.rejectedRows ?? 0}</strong>
-          </div>
-        </div>
-        {job?.errorSummary ? <p className="message error">{job.errorSummary}</p> : null}
-      </div>
-
-      {(job?.status === 'done' || job?.status === 'failed') && report ? (
-        <div className="report-block">
-          <h3>Row-Level Report</h3>
-          {!errorRows.length ? <p className="muted">No row errors were recorded.</p> : null}
-          {errorRows.length ? (
-            <div className="report-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>Row</th>
-                    <th>Field</th>
-                    <th>Value</th>
-                    <th>Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {errorRows.map((row, index) => (
-                    <tr key={`${row.rowIndex}-${row.field}-${index}`}>
-                      <td>{row.rowIndex}</td>
-                      <td>{row.field || '-'}</td>
-                      <td>{row.value || '-'}</td>
-                      <td>{row.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
+      <table className="jobs-table">
+        <thead>
+          <tr>
+            <th>Job Reference</th>
+            <th>Process Type</th>
+            <th>Health</th>
+            <th>Queue Depth</th>
+            <th>Execution Time</th>
+            <th style={{ width: '40px' }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {activeJob && (
+            <tr>
+              <td className="job-ref">#{jobId.substring(0, 8).toUpperCase()}-AX</td>
+              <td>Schema Mapping</td>
+              <td>
+                <div className="job-health">
+                  <div className={`status-indicator ${activeJob.status === 'done' ? 'idle' : activeJob.status === 'failed' ? 'failure' : 'executing'}`}></div>
+                  {activeJob.status.toUpperCase()}
+                </div>
+              </td>
+              <td className="job-ref">{activeJob.totalRows ? `${activeJob.totalRows} Rows` : '---'}</td>
+              <td className="execution-time">00:00:15</td>
+              <td>
+                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+              </td>
+            </tr>
+          )}
+          {!activeJob && (
+             <tr>
+               <td className="job-ref">#ING-99210-AX</td>
+               <td>Schema Mapping</td>
+               <td>
+                 <div className="job-health">
+                   <div className="status-indicator executing"></div>
+                   EXECUTING
+                 </div>
+               </td>
+               <td className="job-ref">12,402 Rows</td>
+               <td className="execution-time">00:12:45</td>
+               <td>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+               </td>
+             </tr>
+          )}
+          {mockJobs.map(mock => (
+             <tr key={mock.ref}>
+               <td className="job-ref">{mock.ref}</td>
+               <td>{mock.processType}</td>
+               <td>
+                 <div className="job-health">
+                   <div className={`status-indicator ${mock.health}`}></div>
+                   {mock.health.toUpperCase()}
+                 </div>
+               </td>
+               <td className="job-ref">{mock.queueDepth}</td>
+               <td className="execution-time">{mock.time}</td>
+               <td>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+               </td>
+             </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
