@@ -18,6 +18,7 @@ const TemplateSchema = new mongoose.Schema(
     excludedColumns: { type: Object, default: {} },
     schemaMeta: { type: Object, default: {} },
     foreignKeys: { type: [Object], default: [] },
+    workbookMeta: { type: Object, default: null },
     minioKey: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
   },
