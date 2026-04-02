@@ -9,6 +9,14 @@ const required = (value, name) => {
   return value;
 };
 
+const optionalBoolean = (value, fallback = false) => {
+  if (value == null || value === '') {
+    return fallback;
+  }
+
+  return String(value).toLowerCase() === 'true';
+};
+
 export const config = {
   app: {
     port: Number(process.env.PORT) || 4000,
@@ -18,7 +26,9 @@ export const config = {
     corsOrigins: (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5300')
       .split(',')
       .map((origin) => origin.trim())
-      .filter(Boolean)
+      .filter(Boolean),
+    debugEnabled: optionalBoolean(process.env.PDIE_DEBUG_ENABLED, false),
+    debugToken: process.env.PDIE_DEBUG_TOKEN || ''
   },
   postgres: {
     connectionString: required(process.env.PG_CONNECTION_STRING, 'PG_CONNECTION_STRING'),
