@@ -88,6 +88,152 @@ export const getForeignKeys = async (tableNames) => {
   }));
 };
 
+export const getTablesRelatedToBaseTable = async (baseTableName, maxDepth = 2) => {
+  const baseTable = String(baseTableName || '').trim().toLowerCase();
+  if (!baseTable) {
+    return {
+      baseTable: '',
+      directRelationships: [],
+      indirectRelationships: [],
+      relatedTables: [],
+      dependencyTables: [],
+      childTables: []
+    };
+  }
+
+  const safeDepth = Math.max(1, Math.min(Number(maxDepth) || 2, 3));
+
+  const directResult = await pool.query(
+    `
+      SELECT
+        tc.table_name AS source_table,
+        kcu.column_name AS source_column,
+        ccu.table_name AS target_table,
+        ccu.column_name AS target_column
+      FROM information_schema.table_constraints AS tc
+      JOIN information_schema.key_column_usage AS kcu
+        ON tc.constraint_name = kcu.constraint_name
+       AND tc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage AS ccu
+        ON tc.constraint_name = ccu.constraint_name
+       AND tc.constraint_schema = ccu.constraint_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND tc.table_schema = $1
+        AND ccu.table_schema = $1
+        AND (
+          ccu.table_name = $2
+          OR tc.table_name = $2
+        )
+      ORDER BY source_table, source_column, target_table, target_column
+    `,
+    [config.postgres.schema, baseTable]
+  );
+
+  const directRelationships = directResult.rows.map((row) => ({
+    source_table: row.source_table,
+    source_column: row.source_column,
+    target_table: row.target_table,
+    target_column: row.target_column
+  }));
+
+  if (safeDepth === 1) {
+    const relatedTables = [...new Set(
+      [baseTable, ...directRelationships.flatMap((row) => [row.source_table, row.target_table])]
+    )].sort();
+
+    const dependencyTables = [...new Set(
+      directRelationships
+        .filter((row) => row.source_table === baseTable && row.target_table !== baseTable)
+        .map((row) => row.target_table)
+    )].sort();
+
+    const childTables = [...new Set(
+      directRelationships
+        .filter((row) => row.target_table === baseTable && row.source_table !== baseTable)
+        .map((row) => row.source_table)
+    )].sort();
+
+    return {
+      baseTable,
+      directRelationships,
+      indirectRelationships: [],
+      relatedTables,
+      dependencyTables,
+      childTables
+    };
+  }
+
+  const connectedTables = [...new Set(
+    directRelationships.flatMap((row) => [row.source_table, row.target_table])
+  )].filter((table) => table !== baseTable);
+
+  const indirectResult = connectedTables.length
+    ? await pool.query(
+      `
+        SELECT
+          tc.table_name AS source_table,
+          kcu.column_name AS source_column,
+          ccu.table_name AS target_table,
+          ccu.column_name AS target_column
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.constraint_schema = kcu.constraint_schema
+        JOIN information_schema.constraint_column_usage AS ccu
+          ON tc.constraint_name = ccu.constraint_name
+         AND tc.constraint_schema = ccu.constraint_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = $1
+          AND ccu.table_schema = $1
+          AND (
+            tc.table_name = ANY($2::text[])
+            OR ccu.table_name = ANY($2::text[])
+          )
+          AND tc.table_name <> $3
+          AND ccu.table_name <> $3
+        ORDER BY source_table, source_column, target_table, target_column
+      `,
+      [config.postgres.schema, connectedTables, baseTable]
+    )
+    : { rows: [] };
+
+  const indirectRelationships = indirectResult.rows.map((row) => ({
+    source_table: row.source_table,
+    source_column: row.source_column,
+    target_table: row.target_table,
+    target_column: row.target_column
+  }));
+
+  const relatedTables = [...new Set(
+    [
+      baseTable,
+      ...directRelationships.flatMap((row) => [row.source_table, row.target_table]),
+      ...indirectRelationships.flatMap((row) => [row.source_table, row.target_table])
+    ]
+  )].sort();
+
+  const dependencyTables = [...new Set(
+    directRelationships
+      .filter((row) => row.source_table === baseTable && row.target_table !== baseTable)
+      .map((row) => row.target_table)
+  )].sort();
+
+  const childTables = [...new Set(
+    directRelationships
+      .filter((row) => row.target_table === baseTable && row.source_table !== baseTable)
+      .map((row) => row.source_table)
+  )].sort();
+
+  return {
+    baseTable,
+    directRelationships,
+    indirectRelationships,
+    relatedTables,
+    dependencyTables,
+    childTables
+  };
+};
+
 export const listPublicTables = async () => {
   const result = await pool.query(
     `
