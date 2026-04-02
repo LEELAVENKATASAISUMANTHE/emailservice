@@ -12,8 +12,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - pdie-minio-data:/data
 
@@ -46,22 +46,22 @@ services:
       - minio
       - redpanda
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: production
       PORT: 4000
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5300}
-      PG_CONNECTION_STRING: ${PG_CONNECTION_STRING}
-      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/pdie}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      REDPANDA_BROKERS: ${REDPANDA_BROKERS:-redpanda:9092}
-      REDPANDA_TOPIC: ${REDPANDA_TOPIC:-pdie.ingest}
-      STARTUP_RETRY_ATTEMPTS: ${STARTUP_RETRY_ATTEMPTS:-30}
-      STARTUP_RETRY_DELAY_MS: ${STARTUP_RETRY_DELAY_MS:-2000}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5300,http://134.209.159.132:5300
+      PG_CONNECTION_STRING: postgresql://admin:sumanth123@172.17.0.1:5432/placement
+      MONGO_URI: mongodb://mongo:27017/pdie
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: 'false'
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      REDPANDA_BROKERS: redpanda:9092
+      REDPANDA_TOPIC: pdie.ingest
+      STARTUP_RETRY_ATTEMPTS: 30
+      STARTUP_RETRY_DELAY_MS: 2000
     ports:
-      - '${BACKEND_HOST_PORT:-5400}:4000'
+      - '5400:4000'
 
   pdie-worker:
     build:
@@ -74,35 +74,35 @@ services:
       - minio
       - redpanda
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PG_CONNECTION_STRING: ${PG_CONNECTION_STRING}
-      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/pdie}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      REDPANDA_BROKERS: ${REDPANDA_BROKERS:-redpanda:9092}
-      REDPANDA_TOPIC: ${REDPANDA_TOPIC:-pdie.ingest}
-      REDPANDA_WORKER_CLIENT_ID: ${REDPANDA_WORKER_CLIENT_ID:-pdie-worker}
-      REDPANDA_WORKER_GROUP_ID: ${REDPANDA_WORKER_GROUP_ID:-pdie-workers}
-      STARTUP_RETRY_ATTEMPTS: ${STARTUP_RETRY_ATTEMPTS:-30}
-      STARTUP_RETRY_DELAY_MS: ${STARTUP_RETRY_DELAY_MS:-2000}
+      NODE_ENV: production
+      PG_CONNECTION_STRING: postgresql://admin:sumanth123@172.17.0.1:5432/placement
+      MONGO_URI: mongodb://mongo:27017/pdie
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: 'false'
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      REDPANDA_BROKERS: redpanda:9092
+      REDPANDA_TOPIC: pdie.ingest
+      REDPANDA_WORKER_CLIENT_ID: pdie-worker
+      REDPANDA_WORKER_GROUP_ID: pdie-workers
+      STARTUP_RETRY_ATTEMPTS: 30
+      STARTUP_RETRY_DELAY_MS: 2000
 
   pdie-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5400}
+        VITE_API_BASE_URL: http://134.209.159.132:5400
     container_name: pdie-frontend
     restart: unless-stopped
     depends_on:
       - pdie-backend
     environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5400}
+      VITE_API_BASE_URL: http://134.209.159.132:5400
     ports:
-      - '${FRONTEND_HOST_PORT:-5300}:80'
+      - '5300:80'
 
 volumes:
   pdie-mongo-data:
