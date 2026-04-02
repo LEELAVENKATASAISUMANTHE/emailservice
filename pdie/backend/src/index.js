@@ -7,14 +7,14 @@ import { config } from './config/index.js';
 import { errorHandler, notFoundHandler, requestIdMiddleware } from './middlewares/errorHandler.js';
 import { connectMongo } from './db/mongo.js';
 import { pgPool } from './db/postgres.js';
-import { ensureBuckets, minioClient } from './storage/minio.js';
+import { ensureBucket, minioClient } from './db/minio.js';
 import { logger } from './utils/logger.js';
 import { retryStartupStep } from './utils/retry.js';
 import mongoose from 'mongoose';
 
 const app = express();
 const corsOptions = {
-  origin: config.cors.origins
+  origin: config.app.corsOrigins
 };
 
 app.use(cors(corsOptions));
@@ -88,7 +88,7 @@ const start = async () => {
 
   await retryStartupStep('MongoDB', () => connectMongo(), retryOptions);
   await retryStartupStep('PostgreSQL', () => pgPool.query('SELECT 1'), retryOptions);
-  await retryStartupStep('MinIO', () => ensureBuckets(), retryOptions);
+  await retryStartupStep('MinIO', () => ensureBucket(config.minio.bucket), retryOptions);
 
   app.listen(config.app.port, () => {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

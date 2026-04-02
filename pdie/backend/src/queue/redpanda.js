@@ -16,6 +16,19 @@ export const getProducer = async () => {
   return producer;
 };
 
+export const publishJob = async (jobId) => {
+  const activeProducer = await getProducer();
+  await activeProducer.send({
+    topic: config.redpanda.topic,
+    messages: [
+      {
+        key: jobId,
+        value: JSON.stringify({ jobId })
+      }
+    ]
+  });
+};
+
 export const disconnectProducer = async () => {
   if (producer) {
     await producer.disconnect();

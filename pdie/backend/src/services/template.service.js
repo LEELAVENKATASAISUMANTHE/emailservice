@@ -1,195 +1,219 @@
+import crypto from 'crypto';
 import ExcelJS from 'exceljs';
-import stringify from 'fast-json-stable-stringify';
-import { TemplateModel } from '../models/mongo/Template.js';
-import { fetchRelationships, fetchTableColumns, fetchNaturalJoinKeys } from '../db/postgres.js';
-import { sha256 } from '../utils/hash.js';
-import { config } from '../config/index.js';
-import { uploadBuffer } from '../storage/minio.js';
+import { getForeignKeys, getTablesMeta } from '../db/postgres.js';
+import { uploadBuffer } from '../db/minio.js';
+import { TemplateModel } from '../models/Template.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 
-/**
- * Build deduplicated headers.
- *
- * Join keys (columns shared across requested tables, e.g. `student_id`)
- * are emitted **once** at the very start without any table prefix.
- *
- * Remaining columns are emitted as `table__column`, skipping any column
- * that has already been emitted as a join key.
- *
- * Returns { headers, headerMap } where headerMap records the canonical
- * mapping from each header string back to { table, column } (or for join
- * keys, to all tables that share that column).
- */
-const buildHeaders = ({ columnsByTable, joinKeys, relationships }) => {
-  const headers = [];
-  const headerMap = {};
-  const seen = new Set();
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
-  // ── 1. Emit join keys once (unprefixed) ──────────────────────────────
-  joinKeys.forEach((key) => {
-    if (seen.has(key)) return;
-    headers.push(key);
-    seen.add(key);
+const buildExcludedColumns = (tablesMeta) => {
+  const auditNames = new Set([
+    'id', 'created_at', 'updated_at', 'deleted_at',
+    'inserted_at', 'created_by', 'updated_by'
+  ]);
+  const autoDefaultPatterns = [
+    /^nextval\(/i,
+    /^gen_random_uuid\(\)/i,
+    /^uuid_generate/i,
+    /^now\(\)/i,
+    /^current_timestamp/i
+  ];
 
-    // Record which tables share this join key
-    const tables = Object.keys(columnsByTable).filter((table) =>
-      columnsByTable[table].some((col) => col.column === key)
-    );
-    headerMap[key] = { column: key, tables, isJoinKey: true };
+  const result = {};
+
+  for (const [table, columns] of Object.entries(tablesMeta)) {
+    result[table] = columns
+      .filter((column) => {
+        if (column.is_identity === 'YES') return true;
+        if (auditNames.has(column.column_name)) return true;
+        if (
+          column.column_default &&
+          autoDefaultPatterns.some((pattern) => pattern.test(column.column_default))
+        ) {
+          return true;
+        }
+        return false;
+      })
+      .map((column) => column.column_name);
+  }
+
+  return result;
+};
+
+const topologicalSortTables = (tables, foreignKeys) => {
+  const children = new Map();
+  const inDegree = new Map();
+
+  tables.forEach((table) => {
+    children.set(table, new Set());
+    inDegree.set(table, 0);
   });
 
-  // ── 2. Emit FK relationship columns (prefixed) if not a join key ─────
-  relationships.forEach((rel) => {
-    [
-      { table: rel.source_table, column: rel.source_column },
-      { table: rel.target_table, column: rel.target_column }
-    ].forEach(({ table, column }) => {
-      if (joinKeys.includes(column)) return; // already emitted unprefixed
-      const header = `${table}__${column}`;
-      if (!seen.has(header)) {
-        headers.push(header);
-        seen.add(header);
-        headerMap[header] = { column, tables: [table], isJoinKey: false };
+  foreignKeys.forEach((foreignKey) => {
+    if (!children.has(foreignKey.to_table) || !children.has(foreignKey.from_table)) {
+      return;
+    }
+
+    if (!children.get(foreignKey.to_table).has(foreignKey.from_table)) {
+      children.get(foreignKey.to_table).add(foreignKey.from_table);
+      inDegree.set(foreignKey.from_table, inDegree.get(foreignKey.from_table) + 1);
+    }
+  });
+
+  const queue = tables.filter((table) => inDegree.get(table) === 0).sort();
+  const order = [];
+
+  while (queue.length) {
+    const table = queue.shift();
+    order.push(table);
+
+    [...children.get(table)].sort().forEach((child) => {
+      inDegree.set(child, inDegree.get(child) - 1);
+      if (inDegree.get(child) === 0) {
+        queue.push(child);
+        queue.sort();
       }
     });
+  }
+
+  tables.forEach((table) => {
+    if (!order.includes(table)) {
+      order.push(table);
+    }
   });
 
-  // ── 3. Emit remaining columns from the requested tables ──────────────
-  Object.entries(columnsByTable).forEach(([table, columns]) => {
-    columns.forEach((col) => {
-      if (joinKeys.includes(col.column)) return; // already emitted unprefixed
-      const header = `${table}__${col.column}`;
-      if (!seen.has(header)) {
-        headers.push(header);
-        seen.add(header);
-        headerMap[header] = { column: col.column, tables: [table], isJoinKey: false };
-      }
-    });
-  });
-
-  return { headers, headerMap };
+  return order;
 };
 
 const buildTemplateId = (tables, joinKeys) =>
-  sha256(stringify({ tables: [...tables].sort(), joinKeys: [...joinKeys].sort() }));
+  sha256(`${[...tables].sort().join(',')}|${[...joinKeys].sort().join(',')}`);
 
-export const ensureTemplate = async ({ tables }) => {
-  if (!Array.isArray(tables) || !tables.length) {
+const resolveJoinKeyAssignments = (joinKeys, foreignKeys, excludedColumns) => {
+  const seen = new Set();
+  const assignments = [];
+
+  foreignKeys.forEach((foreignKey) => {
+    if (!joinKeys.includes(foreignKey.from_column) || seen.has(foreignKey.from_column)) {
+      return;
+    }
+
+    if ((excludedColumns[foreignKey.from_table] || []).includes(foreignKey.from_column)) {
+      return;
+    }
+
+    assignments.push({
+      header: foreignKey.from_column,
+      table: foreignKey.from_table,
+      column: foreignKey.from_column
+    });
+    seen.add(foreignKey.from_column);
+  });
+
+  return assignments;
+};
+
+export const ensureTemplate = async (tableNames) => {
+  if (!Array.isArray(tableNames) || !tableNames.length) {
     throw new HttpError(400, 'tables must be a non-empty array');
   }
 
-  const normalizedTables = [...new Set(tables.map((name) => name.toLowerCase()))];
-  const columnsByTable = await fetchTableColumns(normalizedTables);
-  const missing = normalizedTables.filter((table) => !columnsByTable[table]);
-  if (missing.length) {
-    throw new HttpError(400, `Unknown tables: ${missing.join(', ')}`);
+  const normalizedTables = [...new Set(
+    tableNames
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  )];
+
+  if (!normalizedTables.length) {
+    throw new HttpError(400, 'tables must be a non-empty array');
   }
 
-  const relationships = await fetchRelationships(normalizedTables);
-  const naturalJoinKeys = fetchNaturalJoinKeys(columnsByTable);
-  const joinKeys = naturalJoinKeys.length
-    ? naturalJoinKeys
-    : relationships.map((rel) => rel.source_column).filter((v, i, a) => a.indexOf(v) === i);
-  const templateId = buildTemplateId(normalizedTables, joinKeys);
+  const foreignKeys = await getForeignKeys(normalizedTables);
+  const joinKeys = [...new Set(
+    foreignKeys
+      .filter((foreignKey) =>
+        normalizedTables.includes(foreignKey.from_table) &&
+        normalizedTables.includes(foreignKey.to_table)
+      )
+      .map((foreignKey) => foreignKey.from_column)
+      .sort()
+  )];
 
+  const templateId = buildTemplateId(normalizedTables, joinKeys);
   const existing = await TemplateModel.findOne({ templateId });
   if (existing) {
     return existing;
   }
 
-  const { headers, headerMap } = buildHeaders({ columnsByTable, joinKeys, relationships });
+  const tablesMeta = await getTablesMeta(normalizedTables);
+  const missingTables = normalizedTables.filter((table) => !tablesMeta[table]?.length);
+  if (missingTables.length) {
+    throw new HttpError(400, `Unknown tables: ${missingTables.join(', ')}`);
+  }
 
-  // ── Build Excel workbook ──────────────────────────────────────────────
+  const excludedColumns = buildExcludedColumns(tablesMeta);
+  const tableOrder = topologicalSortTables(normalizedTables, foreignKeys);
+  const headerMap = resolveJoinKeyAssignments(joinKeys, foreignKeys, excludedColumns);
+
+  tableOrder.forEach((table) => {
+    (tablesMeta[table] || []).forEach((column) => {
+      if ((excludedColumns[table] || []).includes(column.column_name)) {
+        return;
+      }
+      if (joinKeys.includes(column.column_name)) {
+        return;
+      }
+
+      headerMap.push({
+        header: `${table}__${column.column_name}`,
+        table,
+        column: column.column_name
+      });
+    });
+  });
+
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('data');
-  sheet.columns = headers.map((header) => ({ header, key: header }));
+  const dataSheet = workbook.addWorksheet('data');
+  dataSheet.addRow(headerMap.map((entry) => entry.header));
+  dataSheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-  // Style the header row
-  const headerRow = sheet.getRow(1);
+  dataSheet.columns.forEach((column, index) => {
+    const header = headerMap[index]?.header || '';
+    column.width = Math.max(15, Math.min(40, header.length + 6));
+  });
+
+  const headerRow = dataSheet.getRow(1);
   headerRow.font = { bold: true };
   headerRow.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFE2EFDA' }
+    fgColor: { argb: 'FFE5E7EB' }
   };
 
-  // Auto-width columns
-  sheet.columns.forEach((col) => {
-    col.width = Math.max((col.header || '').length + 4, 14);
-  });
-
-  // Hidden _meta sheet with template metadata
-  const metadataSheet = workbook.addWorksheet('_meta');
-  metadataSheet.state = 'veryHidden';
-  metadataSheet.addTable({
-    name: 'metadata',
-    ref: 'A1',
-    headerRow: true,
-    columns: [{ name: 'key' }, { name: 'value' }],
-    rows: [
-      ['templateId', templateId],
-      ['tables', normalizedTables.join(',')],
-      ['joinKeys', joinKeys.join(',')]
-    ]
-  });
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const checksum = sha256(buffer);
-  const objectName = `templates/${templateId}.xlsx`;
-
-  await uploadBuffer({
-    bucket: config.minio.buckets.templates,
-    objectName,
-    buffer,
-    metadata: { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
-  });
-
-  const template = await TemplateModel.create({
+  const metaSheet = workbook.addWorksheet('_meta');
+  metaSheet.state = 'veryHidden';
+  metaSheet.getCell('A1').value = JSON.stringify({
     templateId,
     tables: normalizedTables,
     joinKeys,
-    joinGraph: relationships,
-    headers,
-    minioKey: objectName,
-    checksum,
-    metadata: { columnsByTable, headerMap }
+    excludedColumns
   });
 
-  return template;
-};
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const minioKey = `templates/${templateId}.xlsx`;
+  await uploadBuffer(minioKey, buffer, {
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
 
-export const listTemplates = async ({ page = 1, limit = 20 }) => {
-  const skip = (page - 1) * limit;
-  const [docs, total] = await Promise.all([
-    TemplateModel.find({}, { metadata: 0 })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    TemplateModel.countDocuments()
-  ]);
-  return { templates: docs, total, page, limit, pages: Math.ceil(total / limit) };
-};
-
-export const getTemplateById = async (templateId) => {
-  const template = await TemplateModel.findOne({ templateId }).lean();
-  if (!template) {
-    throw new HttpError(404, 'Template not found');
-  }
-  return template;
-};
-
-export const deleteTemplate = async (templateId) => {
-  const template = await TemplateModel.findOneAndDelete({ templateId });
-  if (!template) {
-    throw new HttpError(404, 'Template not found');
-  }
-  // Best-effort MinIO cleanup
-  try {
-    const { minioClient } = await import('../storage/minio.js');
-    await minioClient.removeObject(config.minio.buckets.templates, template.minioKey);
-  } catch (_err) {
-    // ignore — template record is already deleted
-  }
-  return { deleted: true, templateId };
+  return TemplateModel.create({
+    templateId,
+    tables: normalizedTables,
+    joinKeys,
+    headerMap,
+    excludedColumns,
+    schemaMeta: tablesMeta,
+    foreignKeys,
+    minioKey,
+    createdAt: new Date()
+  });
 };

@@ -11,40 +11,36 @@ const required = (value, name) => {
 
 export const config = {
   app: {
-    port: Number(process.env.PORT) || 8080,
+    port: Number(process.env.PORT) || 4000,
     nodeEnv: process.env.NODE_ENV || 'development',
     startupRetryAttempts: Number(process.env.STARTUP_RETRY_ATTEMPTS) || 30,
-    startupRetryDelayMs: Number(process.env.STARTUP_RETRY_DELAY_MS) || 2000
-  },
-  cors: {
-    origins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5300,http://134.209.159.132:5300')
+    startupRetryDelayMs: Number(process.env.STARTUP_RETRY_DELAY_MS) || 2000,
+    corsOrigins: (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5300')
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean)
   },
   postgres: {
-    connectionString: required(process.env.POSTGRES_URL, 'POSTGRES_URL'),
-    schema: process.env.POSTGRES_SCHEMA || 'public'
+    connectionString: required(process.env.PG_CONNECTION_STRING, 'PG_CONNECTION_STRING'),
+    schema: 'public'
   },
   mongo: {
-    uri: required(process.env.MONGODB_URI, 'MONGODB_URI')
+    uri: required(process.env.MONGO_URI, 'MONGO_URI')
   },
   minio: {
     endPoint: required(process.env.MINIO_ENDPOINT, 'MINIO_ENDPOINT'),
-    port: Number(process.env.MINIO_PORT) || 9000,
+    port: Number(process.env.MINIO_PORT || 9000),
     useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: required(process.env.MINIO_ACCESS_KEY, 'MINIO_ACCESS_KEY'),
     secretKey: required(process.env.MINIO_SECRET_KEY, 'MINIO_SECRET_KEY'),
-    buckets: {
-      templates: process.env.MINIO_TEMPLATES_BUCKET || 'templates',
-      uploads: process.env.MINIO_UPLOADS_BUCKET || 'uploads',
-      processed: process.env.MINIO_PROCESSED_BUCKET || 'processed',
-      failed: process.env.MINIO_FAILED_BUCKET || 'failed'
-    }
+    bucket: 'pdie-files'
   },
   redpanda: {
     clientId: process.env.REDPANDA_CLIENT_ID || 'pdie-backend',
-    brokers: required(process.env.REDPANDA_BROKERS, 'REDPANDA_BROKERS').split(',').map((broker) => broker.trim()).filter(Boolean),
-    uploadTopic: process.env.REDPANDA_UPLOAD_TOPIC || 'pdie.uploads'
+    brokers: required(process.env.REDPANDA_BROKERS, 'REDPANDA_BROKERS')
+      .split(',')
+      .map((broker) => broker.trim())
+      .filter(Boolean),
+    topic: process.env.REDPANDA_TOPIC || 'pdie.ingest'
   }
 };

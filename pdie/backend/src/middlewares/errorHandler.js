@@ -21,13 +21,13 @@ export const requestIdMiddleware = (req, res, next) => {
 };
 
 export const notFoundHandler = (_req, res, _next) => {
-  res.status(404).json({ message: 'Resource not found' });
+  res.status(404).json({ error: 'Resource not found' });
 };
 
 export const errorHandler = (err, req, res, _next) => {
   const status = err.statusCode || 500;
   const payload = {
-    message: err.message || 'Internal server error',
+    error: err.message || 'Internal server error',
     requestId: req.id
   };
 

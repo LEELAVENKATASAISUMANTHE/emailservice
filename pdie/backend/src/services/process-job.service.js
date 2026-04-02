@@ -1,19 +1,9 @@
-import { Kafka } from 'kafkajs';
-import { config } from '../config/index.js';
-import { logger } from '../utils/logger.js';
 import { TemplateModel } from '../models/Template.js';
+import { appendLogRows, getJob, updateJob } from './job.service.js';
 import { getObjectBuffer } from '../db/minio.js';
 import { streamRows } from '../utils/excel.js';
-import { getJob, updateJob, appendLogRows } from './job.service.js';
 import { validateRows } from './validation.service.js';
 import { ingestRows } from './ingest.service.js';
-
-const kafka = new Kafka({
-  clientId: config.redpanda.clientId,
-  brokers: config.redpanda.brokers
-});
-
-const nextOffset = (offset) => (BigInt(offset) + 1n).toString();
 
 const toLogRow = (row) => ({
   rowIndex: row.rowIndex,
@@ -125,54 +115,4 @@ export const processJob = async (jobId) => {
 
     throw error;
   }
-};
-
-export const startWorker = async () => {
-  const consumer = kafka.consumer({ groupId: config.redpanda.groupId });
-  await consumer.connect();
-  await consumer.subscribe({ topic: config.redpanda.topic, fromBeginning: false });
-
-  await consumer.run({
-    autoCommit: false,
-    eachMessage: async ({ topic, partition, message }) => {
-      if (!message.value) {
-        await consumer.commitOffsets([
-          { topic, partition, offset: nextOffset(message.offset) }
-        ]);
-        return;
-      }
-
-      let jobId = '';
-
-      try {
-        const payload = JSON.parse(message.value.toString());
-        jobId = String(payload?.jobId || '');
-        if (!jobId) {
-          throw new Error('Worker message missing jobId');
-        }
-
-        await processJob(jobId);
-        await consumer.commitOffsets([
-          { topic, partition, offset: nextOffset(message.offset) }
-        ]);
-      } catch (error) {
-        logger.error({ err: error, jobId, offset: message.offset }, 'Worker failed to process job');
-
-        if (jobId) {
-          await updateJob(jobId, {
-            status: 'failed',
-            errorSummary: error.message,
-            updatedAt: new Date()
-          }).catch(() => {});
-          return;
-        }
-
-        await consumer.commitOffsets([
-          { topic, partition, offset: nextOffset(message.offset) }
-        ]);
-      }
-    }
-  });
-
-  logger.info('Worker listening for PDIE ingest jobs');
 };

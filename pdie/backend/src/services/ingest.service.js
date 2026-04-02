@@ -1,260 +1,230 @@
-import format from 'pg-format';
 import { pgPool } from '../db/postgres.js';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { JobModel } from '../models/Job.js';
+import { appendLogRows } from './job.service.js';
 
-/**
- * Extract per-table column values from a single validated row.
- *
- * Uses the template `headerMap` to know which header maps to which
- * table + column. Join key columns are replicated into every target table.
- */
-const splitRowByTable = ({ row, tables, headerMap, joinKeys }) => {
-  const tableRows = {};
-  tables.forEach((table) => {
-    tableRows[table] = {};
-  });
+const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
-  Object.entries(row).forEach(([header, value]) => {
-    if (header === 'rowNumber') return;
+const shouldOmitValue = (value) => value === undefined || value === null || String(value).trim() === '';
 
-    const mapping = headerMap[header];
-    if (!mapping) return;
-
-    if (mapping.isJoinKey) {
-      // Join key → write into every table that has this column
-      mapping.tables.forEach((table) => {
-        if (tableRows[table]) {
-          tableRows[table][mapping.column] = value;
-        }
-      });
-    } else {
-      // Regular column → write into its single table
-      mapping.tables.forEach((table) => {
-        if (tableRows[table]) {
-          tableRows[table][mapping.column] = value;
-        }
-      });
-    }
-  });
-
-  // Also propagate join keys explicitly (in case the row has the plain key)
-  joinKeys.forEach((key) => {
-    const value = row[key];
-    if (value !== undefined && value !== null) {
-      tables.forEach((table) => {
-        if (tableRows[table] && tableRows[table][key] === undefined) {
-          tableRows[table][key] = value;
-        }
-      });
-    }
-  });
-
-  return tableRows;
-};
-
-/**
- * Determine insert order based on FK relationships.
- * Tables that are referenced (targets) should be inserted before
- * tables that reference them (sources).
- */
-const computeInsertOrder = ({ tables, relationships }) => {
-  // Build a dependency graph: source depends on target
-  const deps = new Map();
-  tables.forEach((t) => deps.set(t, new Set()));
-
-  relationships.forEach((rel) => {
-    if (deps.has(rel.source_table) && deps.has(rel.target_table)) {
-      deps.get(rel.source_table).add(rel.target_table);
-    }
-  });
-
-  // Topological sort (Kahn's algorithm)
+const topologicalSortTables = (tables, foreignKeys) => {
+  const children = new Map();
   const inDegree = new Map();
-  tables.forEach((t) => inDegree.set(t, 0));
-  deps.forEach((targets) => {
-    targets.forEach((target) => {
-      // source depends on target, so target has lower priority (comes first)
-    });
+
+  tables.forEach((table) => {
+    children.set(table, new Set());
+    inDegree.set(table, 0);
   });
 
-  // Count how many tables depend on each table
-  deps.forEach((targets, source) => {
-    targets.forEach((target) => {
-      // source depends on target — target should come first, so source has higher in-degree
-      inDegree.set(source, (inDegree.get(source) || 0) + 1);
-    });
+  foreignKeys.forEach((foreignKey) => {
+    if (!children.has(foreignKey.to_table) || !children.has(foreignKey.from_table)) {
+      return;
+    }
+
+    if (!children.get(foreignKey.to_table).has(foreignKey.from_table)) {
+      children.get(foreignKey.to_table).add(foreignKey.from_table);
+      inDegree.set(foreignKey.from_table, inDegree.get(foreignKey.from_table) + 1);
+    }
   });
 
-  // Reset and rebuild properly
-  tables.forEach((t) => inDegree.set(t, 0));
-  deps.forEach((targets, source) => {
-    targets.forEach(() => {
-      inDegree.set(source, inDegree.get(source) + 1);
-    });
-  });
-
-  const queue = tables.filter((t) => inDegree.get(t) === 0);
-  const sorted = [];
+  const queue = tables.filter((table) => inDegree.get(table) === 0).sort();
+  const order = [];
 
   while (queue.length) {
-    const node = queue.shift();
-    sorted.push(node);
-    // For every table that depends on `node`, decrement its in-degree
-    deps.forEach((targets, source) => {
-      if (targets.has(node)) {
-        const newDeg = inDegree.get(source) - 1;
-        inDegree.set(source, newDeg);
-        if (newDeg === 0) {
-          queue.push(source);
-        }
+    const table = queue.shift();
+    order.push(table);
+
+    [...children.get(table)].sort().forEach((child) => {
+      inDegree.set(child, inDegree.get(child) - 1);
+      if (inDegree.get(child) === 0) {
+        queue.push(child);
+        queue.sort();
       }
     });
   }
 
-  // If some tables weren't sorted (cycle), append them at the end
-  tables.forEach((t) => {
-    if (!sorted.includes(t)) sorted.push(t);
+  tables.forEach((table) => {
+    if (!order.includes(table)) {
+      order.push(table);
+    }
   });
 
-  return sorted;
+  return order;
 };
 
-/**
- * Build a batch INSERT query for a single table.
- */
-const buildInsertQuery = ({ table, columnNames, rows }) => {
-  if (!rows.length || !columnNames.length) return null;
+const resolveConflictColumn = (templateDoc, table) => {
+  const excluded = templateDoc.excludedColumns?.[table] || [];
+  const columns = templateDoc.schemaMeta?.[table] || [];
 
-  const mappedRows = rows.map((row) =>
-    columnNames.map((col) => row[col] ?? null)
-  );
-
-  // Filter out rows that are entirely null (no data for this table)
-  const nonEmptyRows = mappedRows.filter((row) => row.some((v) => v !== null));
-  if (!nonEmptyRows.length) return null;
-
-  const identifiers = columnNames.map((col) => format.ident(col)).join(', ');
-  return format(
-    `INSERT INTO %I.%I (%s) VALUES %L ON CONFLICT DO NOTHING`,
-    config.postgres.schema,
-    table,
-    identifiers,
-    nonEmptyRows
-  );
+  return columns.find((column) =>
+    !excluded.includes(column.column_name) &&
+    (column.column_name === 'id' || column.column_name.endsWith('_id'))
+  )?.column_name || null;
 };
 
-/**
- * Insert validated rows into ALL tables defined in the template.
- * Inserts are done in FK dependency order within a transaction.
- */
-export const insertRowsMultiTable = async ({ template, rows }) => {
-  if (!rows.length) return { results: {}, totalInserted: 0 };
+const splitRowByTable = (validRow, templateDoc) => {
+  const perTable = Object.fromEntries(templateDoc.tables.map((table) => [table, {}]));
 
-  const tables = template.tables;
-  const joinKeys = template.joinKeys || [];
-  const headerMap = template.metadata?.headerMap || {};
-  const columnsByTable = template.metadata?.columnsByTable || {};
-  const relationships = template.joinGraph || [];
+  templateDoc.headerMap.forEach((entry) => {
+    const value = validRow.data[entry.header];
+    if (shouldOmitValue(value)) {
+      return;
+    }
 
-  const insertOrder = computeInsertOrder({ tables, relationships });
+    if (templateDoc.joinKeys?.includes(entry.column) && entry.header === entry.column) {
+      templateDoc.tables.forEach((table) => {
+        const excluded = templateDoc.excludedColumns?.[table] || [];
+        const hasColumn = (templateDoc.schemaMeta?.[table] || []).some((column) => column.column_name === entry.column);
+        if (hasColumn && !excluded.includes(entry.column)) {
+          perTable[table][entry.column] = value;
+        }
+      });
+      return;
+    }
 
-  // Split each row into per-table payloads
-  const tablePayloads = {};
-  insertOrder.forEach((table) => {
-    tablePayloads[table] = [];
+    if (!(templateDoc.excludedColumns?.[entry.table] || []).includes(entry.column)) {
+      perTable[entry.table][entry.column] = value;
+    }
   });
 
-  rows.forEach((row) => {
-    const perTable = splitRowByTable({ row, tables, headerMap, joinKeys });
-    insertOrder.forEach((table) => {
-      if (perTable[table]) {
-        tablePayloads[table].push(perTable[table]);
-      }
-    });
-  });
+  return perTable;
+};
 
+const buildInsertStatement = (table, payload, conflictColumn) => {
+  const columns = Object.keys(payload).filter((column) => !shouldOmitValue(payload[column]));
+  if (!columns.length) {
+    return null;
+  }
+
+  const values = columns.map((column) => payload[column]);
+  const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
+  const columnSql = columns.map(quoteIdentifier).join(', ');
+  const tableSql = `${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier(table)}`;
+
+  if (!conflictColumn || !columns.includes(conflictColumn)) {
+    return {
+      text: `INSERT INTO ${tableSql} (${columnSql}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+      values
+    };
+  }
+
+  const updateColumns = columns.filter((column) => column !== conflictColumn);
+  const updateSql = updateColumns.length
+    ? updateColumns.map((column) => `${quoteIdentifier(column)} = EXCLUDED.${quoteIdentifier(column)}`).join(', ')
+    : `${quoteIdentifier(conflictColumn)} = EXCLUDED.${quoteIdentifier(conflictColumn)}`;
+
+  return {
+    text: `INSERT INTO ${tableSql} (${columnSql}) VALUES (${placeholders}) ON CONFLICT (${quoteIdentifier(conflictColumn)}) DO UPDATE SET ${updateSql}`,
+    values
+  };
+};
+
+export const ingestRows = async (validRows, templateDoc, jobId) => {
+  if (!validRows.length) {
+    return { committed: 0, rejected: 0, rowResults: [] };
+  }
+
+  const order = topologicalSortTables(templateDoc.tables, templateDoc.foreignKeys || []);
   const client = await pgPool.connect();
-  const results = {};
-  let totalInserted = 0;
+  const currentJob = await JobModel.findOne({ jobId }).lean();
+  const baseRejected = currentJob?.rejectedRows || 0;
+
+  let committed = 0;
+  let rejected = 0;
+  const rowResults = [];
+  let flushBuffer = [];
+
+  const flushProgress = async () => {
+    if (flushBuffer.length) {
+      await appendLogRows(jobId, flushBuffer);
+      flushBuffer = [];
+    }
+
+    await JobModel.updateOne(
+      { jobId },
+      {
+        $set: {
+          processedRows: baseRejected + committed + rejected,
+          committedRows: committed,
+          rejectedRows: baseRejected + rejected,
+          updatedAt: new Date()
+        }
+      }
+    );
+  };
 
   try {
     await client.query('BEGIN');
 
-    for (const table of insertOrder) {
-      const tableRows = tablePayloads[table];
-      if (!tableRows.length) {
-        results[table] = { inserted: 0, skipped: true };
-        continue;
+    for (let index = 0; index < validRows.length; index += 1) {
+      const row = validRows[index];
+      const savepoint = `row_${index + 1}`;
+      await client.query(`SAVEPOINT ${savepoint}`);
+
+      try {
+        const payloads = splitRowByTable(row, templateDoc);
+
+        for (const table of order) {
+          const statement = buildInsertStatement(
+            table,
+            payloads[table],
+            resolveConflictColumn(templateDoc, table)
+          );
+
+          if (!statement) {
+            continue;
+          }
+
+          await client.query(statement.text, statement.values);
+        }
+
+        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+        committed += 1;
+
+        const result = {
+          rowIndex: row.rowIndex,
+          status: 'ok',
+          errors: []
+        };
+
+        rowResults.push(result);
+        flushBuffer.push(result);
+      } catch (error) {
+        logger.error({ err: error, rowIndex: row.rowIndex, jobId }, 'Failed to ingest row');
+        await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+        rejected += 1;
+
+        const result = {
+          rowIndex: row.rowIndex,
+          status: 'error',
+          errors: [
+            {
+              field: '',
+              value: '',
+              message: error.message
+            }
+          ]
+        };
+
+        rowResults.push(result);
+        flushBuffer.push(result);
       }
 
-      const columns = columnsByTable[table] || [];
-      const columnNames = columns.map((col) => col.column);
-
-      // Only include columns that have at least one non-null value across all rows
-      const activeColumns = columnNames.filter((col) =>
-        tableRows.some((row) => row[col] !== undefined && row[col] !== null)
-      );
-
-      if (!activeColumns.length) {
-        results[table] = { inserted: 0, skipped: true };
-        continue;
+      if ((index + 1) % 100 === 0) {
+        await flushProgress();
       }
-
-      const query = buildInsertQuery({ table, columnNames: activeColumns, rows: tableRows });
-      if (!query) {
-        results[table] = { inserted: 0, skipped: true };
-        continue;
-      }
-
-      const result = await client.query(query).catch((err) => {
-        logger.error({ table, err: err.message }, 'Insert failed for table');
-        err.meta = { table };
-        throw err;
-      });
-
-      const inserted = result.rowCount ?? 0;
-      results[table] = { inserted };
-      totalInserted += inserted;
     }
 
     await client.query('COMMIT');
-  } catch (err) {
+    await flushProgress();
+  } catch (error) {
     await client.query('ROLLBACK');
-    throw err;
+    throw error;
   } finally {
     client.release();
   }
 
-  return { results, totalInserted };
-};
-
-/**
- * Legacy single-table insert (kept for backward compatibility).
- */
-export const materializeTableRows = ({ table, columns, rows }) => {
-  const columnNames = columns.map((col) => col.column);
-  const mapped = rows.map((row) => {
-    const values = columnNames.map((column) => row[`${table}__${column}`] ?? row[column] ?? null);
-    return values;
-  });
-  return { columnNames, mappedRows: mapped };
-};
-
-export const insertRowsForTable = async ({ table, columns, rows }) => {
-  if (!rows.length || !columns.length) return { inserted: 0 };
-  const { columnNames, mappedRows } = materializeTableRows({ table, columns, rows });
-  const columnIdentifierList = columnNames.map((column) => format.ident(column)).join(', ');
-  const query = format(
-    `INSERT INTO %I.%I (%s) VALUES %L ON CONFLICT DO NOTHING`,
-    config.postgres.schema,
-    table,
-    columnIdentifierList,
-    mappedRows
-  );
-  const result = await pgPool.query(query).catch((err) => {
-    err.meta = { table };
-    throw err;
-  });
-  return { inserted: result.rowCount ?? rows.length };
+  return { committed, rejected, rowResults };
 };

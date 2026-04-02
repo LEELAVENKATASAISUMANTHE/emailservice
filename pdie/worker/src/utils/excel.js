@@ -30,29 +30,6 @@ const normalizeCellValue = (value) => {
   return value;
 };
 
-export const readExcelMeta = async (buffer) => {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-
-  const metaSheet = workbook.getWorksheet('_meta');
-  if (!metaSheet) {
-    throw new Error('Invalid template - _meta sheet missing or corrupt');
-  }
-
-  const rawValue = metaSheet.getCell('A1').value;
-  const payload = typeof rawValue === 'string' ? rawValue : normalizeCellValue(rawValue);
-
-  try {
-    const parsed = JSON.parse(String(payload || ''));
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('Invalid template payload');
-    }
-    return parsed;
-  } catch (_error) {
-    throw new Error('Invalid template - _meta sheet missing or corrupt');
-  }
-};
-
 export const streamRows = async (buffer, onChunk, chunkSize = 500) => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);

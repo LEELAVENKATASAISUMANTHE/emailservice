@@ -9,15 +9,17 @@ export const connectMongo = async () => {
   if (connectionPromise) {
     return connectionPromise;
   }
+
   connectionPromise = mongoose.connect(config.mongo.uri, {
     autoIndex: false,
     maxPoolSize: 10
   });
+
   try {
     return await connectionPromise;
-  } catch (err) {
+  } catch (error) {
     connectionPromise = null;
-    throw err;
+    throw error;
   }
 };
 

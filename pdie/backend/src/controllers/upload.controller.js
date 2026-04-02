@@ -1,45 +1,119 @@
-import { processUpload, listUploads, getUploadById, getUploadLogs, getUploadErrors } from '../services/upload.service.js';
+import crypto from 'crypto';
+import multer from 'multer';
+import { TemplateModel } from '../models/Template.js';
+import { JobModel } from '../models/Job.js';
+import { uploadBuffer } from '../db/minio.js';
 import { HttpError } from '../middlewares/errorHandler.js';
+import { getJob, getReport, createJob } from '../services/job.service.js';
+import { readExcelMeta, streamRows } from '../utils/excel.js';
+import { processJob } from '../services/process-job.service.js';
+import { publishJob } from '../queue/redpanda.js';
 import { logger } from '../utils/logger.js';
 
-export const uploadExcel = async (req, res) => {
-  if (!req.file) {
-    throw new HttpError(400, 'Excel file is required. Send a multipart/form-data request with a "file" field.');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    if (!file.originalname?.toLowerCase().endsWith('.xlsx')) {
+      callback(new HttpError(400, 'Only .xlsx files are supported'));
+      return;
+    }
+    callback(null, true);
   }
-  logger.info({ originalName: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype }, 'Upload received');
-  const result = await processUpload({
-    filePath: req.file.path,
-    originalName: req.file.originalname,
-    mimetype: req.file.mimetype,
-    fileSize: req.file.size
+});
+
+export const uploadMiddleware = (req, res, next) => {
+  upload.single('file')(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        next(new HttpError(400, 'File exceeds the 50 MB limit'));
+        return;
+      }
+
+      next(new HttpError(400, error.message));
+      return;
+    }
+
+    next(error);
   });
-  logger.info({ uploadId: result.uploadId, processingMode: result.processingMode }, 'Upload processed');
-  res.status(result.processingMode === 'sync' ? 200 : 202).json(result);
 };
 
-export const listAllUploads = async (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-  const { status, templateId } = req.query;
-  const result = await listUploads({ page, limit, status, templateId });
-  res.json(result);
+const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+
+export const uploadExcel = async (req, res) => {
+  if (!req.file?.buffer) {
+    throw new HttpError(400, 'Excel file is required');
+  }
+
+  const buffer = req.file.buffer;
+  const fileHash = sha256(buffer);
+
+  let metadata;
+  try {
+    metadata = await readExcelMeta(buffer);
+  } catch (_error) {
+    return res.status(400).json({ error: 'Invalid template - _meta sheet missing or corrupt' });
+  }
+
+  const template = await TemplateModel.findOne({ templateId: metadata.templateId }).lean();
+  if (!template) {
+    return res.status(400).json({ error: 'Template not found for uploaded workbook' });
+  }
+
+  const { totalRows } = await streamRows(buffer, async () => {}, 500);
+
+  const duplicate = await JobModel.findOne({ fileHash, status: 'done' }).lean();
+  if (duplicate) {
+    return res.status(409).json({ error: 'Duplicate file', existingJobId: duplicate.jobId });
+  }
+
+  const job = await createJob({
+    templateId: template.templateId,
+    originalFilename: req.file.originalname,
+    fileHash,
+    status: 'queued',
+    totalRows,
+    processedRows: 0,
+    committedRows: 0,
+    rejectedRows: 0,
+    errorSummary: ''
+  });
+
+  await uploadBuffer(`uploads/${job.jobId}.xlsx`, buffer, {
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+
+  if (totalRows <= 5000) {
+    Promise.resolve(processJob(job.jobId)).catch((error) => {
+      logger.error({ err: error, jobId: job.jobId }, 'Fire-and-forget job failed');
+    });
+  } else {
+    await publishJob(job.jobId);
+  }
+
+  res.status(202).json({ jobId: job.jobId });
 };
 
-export const getUpload = async (req, res) => {
-  const upload = await getUploadById(req.params.uploadId);
-  res.json(upload);
+export const getJobStatus = async (req, res) => {
+  const job = await getJob(req.params.job_id);
+  if (!job) {
+    throw new HttpError(404, 'Job not found');
+  }
+  delete job._id;
+  res.json(job);
 };
 
-export const getUploadLogsHandler = async (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
-  const result = await getUploadLogs({ uploadId: req.params.uploadId, page, limit });
-  res.json(result);
-};
-
-export const getUploadErrorsHandler = async (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
-  const result = await getUploadErrors({ uploadId: req.params.uploadId, page, limit });
-  res.json(result);
+export const getJobReport = async (req, res) => {
+  const job = await getJob(req.params.job_id);
+  if (!job) {
+    throw new HttpError(404, 'Job not found');
+  }
+  const report = await getReport(req.params.job_id);
+  delete report._id;
+  res.json(report);
 };
