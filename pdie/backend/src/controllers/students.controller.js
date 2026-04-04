@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { TemplateModel } from '../models/Template.js';
 import { JobModel } from '../models/Job.js';
 import { uploadBuffer } from '../db/minio.js';
+import { ensureStudentLinksTable, pgPool } from '../db/postgres.js';
+import { config } from '../config/index.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { createJob } from '../services/job.service.js';
 import { getFullStudentWorkbookStats, processFullStudentUploadJob } from '../services/student-ingest.service.js';
@@ -13,6 +15,7 @@ import { uploadExcel } from './upload.controller.js';
 
 const STUDENT_TABLES = ['students'];
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
 const toTemplateResponse = (template) => {
   const payload = template.toObject ? template.toObject() : { ...template };
@@ -26,6 +29,72 @@ const isStudentsOnlyTemplate = (template) =>
   Array.isArray(template?.tables) &&
   template.tables.length === 1 &&
   template.tables[0] === 'students';
+
+export const getStudentByToken = async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!token) {
+    throw new HttpError(400, 'Token is required');
+  }
+
+  await ensureStudentLinksTable();
+
+  const linkResult = await pgPool.query(
+    `
+      SELECT id, student_id, email, token, status, created_at, expires_at
+      FROM ${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier('student_links')}
+      WHERE token = $1
+      LIMIT 1
+    `,
+    [token]
+  );
+
+  const link = linkResult.rows[0];
+  if (!link) {
+    throw new HttpError(404, 'Invalid or expired link');
+  }
+
+  if (link.expires_at && new Date() > new Date(link.expires_at)) {
+    throw new HttpError(400, 'Link expired');
+  }
+
+  let status = link.status;
+  if (link.status === 'pending') {
+    const updateResult = await pgPool.query(
+      `
+        UPDATE ${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier('student_links')}
+        SET status = 'opened'
+        WHERE token = $1
+          AND status = 'pending'
+        RETURNING status
+      `,
+      [token]
+    );
+
+    if (updateResult.rows[0]?.status) {
+      status = updateResult.rows[0].status;
+    }
+  }
+
+  const studentResult = await pgPool.query(
+    `
+      SELECT *
+      FROM ${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier('students')}
+      WHERE student_id = $1
+      LIMIT 1
+    `,
+    [link.student_id]
+  );
+
+  const student = studentResult.rows[0];
+  if (!student) {
+    throw new HttpError(404, 'Student not found for this link');
+  }
+
+  res.json({
+    student,
+    status
+  });
+};
 
 export const getStudentTemplate = async (_req, res) => {
   const template = await ensureTemplate(STUDENT_TABLES);

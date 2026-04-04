@@ -13,6 +13,22 @@ pool.on('error', (err) => {
 
 export const pgPool = pool;
 
+export const ensureStudentLinksTable = async () => {
+  await pool.query(
+    `
+      CREATE TABLE IF NOT EXISTS ${config.postgres.schema}.student_links (
+        id SERIAL PRIMARY KEY,
+        student_id INT REFERENCES ${config.postgres.schema}.students(student_id) ON DELETE CASCADE,
+        email TEXT,
+        token TEXT UNIQUE NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP
+      )
+    `
+  );
+};
+
 export const getTablesMeta = async (tableNames) => {
   if (!tableNames.length) {
     return {};

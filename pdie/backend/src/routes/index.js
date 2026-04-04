@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { getRecentStudents } from '../controllers/debug.controller.js';
-import { getFullStudentTemplate, getStudentTemplate, uploadStudents } from '../controllers/students.controller.js';
+import {
+  getFullStudentTemplate,
+  getStudentByToken,
+  getStudentTemplate,
+  uploadStudents
+} from '../controllers/students.controller.js';
 import { getStudentRelatedTables, listTables } from '../controllers/tables.controller.js';
 import { downloadTemplate, generateTemplate, listTemplates } from '../controllers/template.controller.js';
 import { getJobReport, getJobStatus, uploadExcel, uploadMiddleware } from '../controllers/upload.controller.js';
@@ -9,6 +14,7 @@ const router = Router();
 
 router.get('/tables', listTables);
 router.get('/tables/students/related', getStudentRelatedTables);
+router.get('/student-link/:token', getStudentByToken);
 router.get('/students/template', getStudentTemplate);
 router.get('/students/template/full', getFullStudentTemplate);
 router.get('/templates', listTemplates);

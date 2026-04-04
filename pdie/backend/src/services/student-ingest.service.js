@@ -1,13 +1,17 @@
+import crypto from 'crypto';
 import ExcelJS from 'exceljs';
 import { TemplateModel } from '../models/Template.js';
 import { getObjectBuffer } from '../db/minio.js';
-import { pgPool } from '../db/postgres.js';
+import { ensureStudentLinksTable, pgPool } from '../db/postgres.js';
 import { config } from '../config/index.js';
 import { appendLogRows, getJob, updateJob } from './job.service.js';
+import { sendStudentLinkEmail } from './email.service.js';
 
 const SUPPORTED_CHILD_SHEETS = new Set(['student_addresses']);
+const STUDENT_LINK_EXPIRY_DAYS = 30;
 
 const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
+const generateToken = () => crypto.randomBytes(32).toString('hex');
 
 const normalizeCellValue = (value) => {
   if (value === undefined || value === null) {
@@ -151,6 +155,26 @@ const buildInsertStatement = (schema, table, payload, returningColumn = '') => {
   };
 };
 
+const resolveStudentEmail = (studentPayload) => {
+  const emailField = Object.keys(studentPayload).find((key) => key.toLowerCase() === 'email');
+  return emailField ? studentPayload[emailField] : null;
+};
+
+const buildStudentLinkPayload = (studentId, email) => {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + STUDENT_LINK_EXPIRY_DAYS);
+
+  return {
+    student_id: studentId,
+    email: email || null,
+    token: generateToken(),
+    expires_at: expiresAt
+  };
+};
+
+const buildStudentLinkUrl = (token) =>
+  `${config.app.frontendUrl.replace(/\/$/, '')}/student-form/${token}`;
+
 export const getFullStudentWorkbookStats = async (buffer, metadata) => {
   const { totalRows } = await parseWorkbookByMeta(buffer, metadata);
   return { totalRows };
@@ -179,6 +203,8 @@ export const processFullStudentUploadJob = async (jobId) => {
   };
 
   try {
+    await ensureStudentLinksTable();
+
     await updateJob(jobId, {
       status: 'validating',
       rejectedRows: 0,
@@ -286,6 +312,7 @@ export const processFullStudentUploadJob = async (jobId) => {
 
     const client = await pgPool.connect();
     const successLogs = [];
+    const emailQueue = [];
     let committedRows = 0;
 
     try {
@@ -300,6 +327,24 @@ export const processFullStudentUploadJob = async (jobId) => {
 
         if (!studentId) {
           throw new Error(`Failed to create student for reference "${studentRef}"`);
+        }
+
+        const studentLinkPayload = buildStudentLinkPayload(
+          studentId,
+          resolveStudentEmail(studentPayload)
+        );
+        const studentLinkInsert = buildInsertStatement(
+          config.postgres.schema,
+          'student_links',
+          studentLinkPayload
+        );
+        await client.query(studentLinkInsert.text, studentLinkInsert.values);
+
+        if (studentLinkPayload.email) {
+          emailQueue.push({
+            email: studentLinkPayload.email,
+            link: buildStudentLinkUrl(studentLinkPayload.token)
+          });
         }
 
         committedRows += 1;
@@ -323,6 +368,10 @@ export const processFullStudentUploadJob = async (jobId) => {
       throw error;
     } finally {
       client.release();
+    }
+
+    for (const message of emailQueue) {
+      await sendStudentLinkEmail(message.email, message.link);
     }
 
     if (successLogs.length) {
