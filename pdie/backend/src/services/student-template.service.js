@@ -124,8 +124,18 @@ const buildSchemaInfoRows = (tables, tablesMeta, tableDetails, excludedColumns) 
     });
   });
 
-const buildTemplateId = (tables) =>
-  sha256(`students-full|${TEMPLATE_VERSION}|${tables.join(',')}`);
+const buildSchemaSignature = (tables, tablesMeta, excludedColumns) =>
+  tables
+    .map((table) => {
+      const visibleColumns = sanitizeHeadersForTable(
+        table,
+        tablesMeta[table] || [],
+        excludedColumns
+      ).map((entry) => entry.header);
+
+      return `${table}:${visibleColumns.join(',')}`;
+    })
+    .join('|');
 
 export const ensureFullStudentTemplate = async () => {
   const graph = await getTablesRelatedToBaseTable(STUDENT_BASE_TABLE);
@@ -133,7 +143,11 @@ export const ensureFullStudentTemplate = async () => {
     .filter((table) => table !== STUDENT_BASE_TABLE)
     .sort();
   const tables = [STUDENT_BASE_TABLE, ...childTables];
-  const templateId = buildTemplateId(tables);
+  const tablesMeta = await getTablesMeta(tables);
+  const excludedColumns = buildExcludedColumns(tablesMeta);
+  const templateId = sha256(
+    `students-full|${TEMPLATE_VERSION}|${buildSchemaSignature(tables, tablesMeta, excludedColumns)}`
+  );
 
   const existing = await TemplateModel.findOne({ templateId });
   if (existing) {
@@ -143,9 +157,7 @@ export const ensureFullStudentTemplate = async () => {
     };
   }
 
-  const tablesMeta = await getTablesMeta(tables);
   const tableDetails = await listPublicTableDetails();
-  const excludedColumns = buildExcludedColumns(tablesMeta);
   const workbook = new ExcelJS.Workbook();
   const headerMap = [];
   const sheets = {};
