@@ -53,6 +53,17 @@ button, input {
   margin-bottom: 40px;
 }
 
+.hero-compact {
+  margin-bottom: 24px;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+}
+
 .hero h1 {
   font-size: 2.8rem;
   font-weight: 700;
@@ -296,6 +307,14 @@ button, input {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 button:disabled {
@@ -572,6 +591,71 @@ button:disabled {
   padding: 24px 0;
 }
 
+.students-list-panel {
+  gap: 16px;
+}
+
+.students-table-wrap {
+  overflow-x: auto;
+}
+
+.students-table-name {
+  font-weight: 600;
+}
+
+.students-table-sub {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.list-feedback {
+  color: var(--text-muted);
+}
+
+.list-feedback-error {
+  color: #B91C1C;
+}
+
+.list-feedback-success {
+  color: #166534;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-pending {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.status-opened {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.status-completed {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.status-none {
+  background: #E5E7EB;
+  color: #4B5563;
+}
+
+.students-action {
+  min-width: 96px;
+}
+
 @media (max-width: 960px) {
   .dashboard {
     padding-left: 20px;
@@ -583,6 +667,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .hero-actions,
   .students-upload-header,
   .jobs-header {
     flex-direction: column;

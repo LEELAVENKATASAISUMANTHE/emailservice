@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { getRecentStudents } from '../controllers/debug.controller.js';
 import {
+  generateStudentLink,
   getFullStudentTemplate,
+  resendStudentLink,
+  getStudents,
   getStudentByToken,
   getStudentTemplate,
   uploadStudents
@@ -15,6 +18,9 @@ const router = Router();
 router.get('/tables', listTables);
 router.get('/tables/students/related', getStudentRelatedTables);
 router.get('/student-link/:token', getStudentByToken);
+router.post('/student-link/:studentId/generate', generateStudentLink);
+router.post('/student-link/:studentId/resend', resendStudentLink);
+router.get('/students', getStudents);
 router.get('/students/template', getStudentTemplate);
 router.get('/students/template/full', getFullStudentTemplate);
 router.get('/templates', listTemplates);

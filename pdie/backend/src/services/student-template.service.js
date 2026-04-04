@@ -6,21 +6,12 @@ import { TemplateModel } from '../models/Template.js';
 
 const STUDENT_BASE_TABLE = 'students';
 const STUDENT_REF_HEADER = 'student_ref';
+const TEMPLATE_VERSION = 'v2';
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
 const buildExcludedColumns = (tablesMeta) => {
-  const auditNames = new Set([
-    'id', 'created_at', 'updated_at', 'deleted_at',
-    'inserted_at', 'created_by', 'updated_by'
-  ]);
-  const autoDefaultPatterns = [
-    /^nextval\(/i,
-    /^gen_random_uuid\(\)/i,
-    /^uuid_generate/i,
-    /^now\(\)/i,
-    /^current_timestamp/i
-  ];
+  const excludedColumnNames = new Set(['id', 'created_at', 'updated_at']);
 
   const result = {};
 
@@ -28,13 +19,7 @@ const buildExcludedColumns = (tablesMeta) => {
     result[table] = columns
       .filter((column) => {
         if (column.is_identity === 'YES') return true;
-        if (auditNames.has(column.column_name)) return true;
-        if (
-          column.column_default &&
-          autoDefaultPatterns.some((pattern) => pattern.test(column.column_default))
-        ) {
-          return true;
-        }
+        if (excludedColumnNames.has(column.column_name)) return true;
         return false;
       })
       .map((column) => column.column_name);
@@ -84,7 +69,7 @@ const styleSheet = (worksheet, headers) => {
 };
 
 const buildTemplateId = (tables) =>
-  sha256(`students-full|${tables.join(',')}`);
+  sha256(`students-full|${TEMPLATE_VERSION}|${tables.join(',')}`);
 
 export const ensureFullStudentTemplate = async () => {
   const graph = await getTablesRelatedToBaseTable(STUDENT_BASE_TABLE);
@@ -121,6 +106,7 @@ export const ensureFullStudentTemplate = async () => {
   metaSheet.state = 'veryHidden';
   metaSheet.getCell('A1').value = JSON.stringify({
     templateId,
+    templateVersion: TEMPLATE_VERSION,
     templateType: 'students-full',
     tables,
     baseTable: STUDENT_BASE_TABLE,
@@ -146,6 +132,7 @@ export const ensureFullStudentTemplate = async () => {
     schemaMeta: tablesMeta,
     foreignKeys: [],
     workbookMeta: {
+      templateVersion: TEMPLATE_VERSION,
       templateType: 'students-full',
       workbookMode: 'multi-sheet',
       referenceColumn: STUDENT_REF_HEADER,
