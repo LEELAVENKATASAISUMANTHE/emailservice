@@ -6,7 +6,7 @@ import { TemplateModel } from '../models/Template.js';
 
 const STUDENT_BASE_TABLE = 'students';
 const STUDENT_REF_HEADER = 'student_ref';
-const TEMPLATE_VERSION = 'v2';
+const TEMPLATE_VERSION = 'v3';
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -19,6 +19,7 @@ const buildExcludedColumns = (tablesMeta) => {
     result[table] = columns
       .filter((column) => {
         if (column.is_identity === 'YES') return true;
+        if (String(column.column_default || '').includes('nextval(')) return true;
         if (excludedColumnNames.has(column.column_name)) return true;
         return false;
       })
@@ -73,8 +74,8 @@ const buildTemplateId = (tables) =>
 
 export const ensureFullStudentTemplate = async () => {
   const graph = await getTablesRelatedToBaseTable(STUDENT_BASE_TABLE);
-  const childTables = graph.childTables
-    .filter((table) => table.startsWith('student_'))
+  const childTables = [...new Set(graph.childTables)]
+    .filter((table) => table !== STUDENT_BASE_TABLE)
     .sort();
   const tables = [STUDENT_BASE_TABLE, ...childTables];
   const templateId = buildTemplateId(tables);

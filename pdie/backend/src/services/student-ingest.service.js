@@ -7,7 +7,6 @@ import { config } from '../config/index.js';
 import { appendLogRows, getJob, updateJob } from './job.service.js';
 import { sendStudentLinkEmail } from './email.service.js';
 
-const SUPPORTED_CHILD_SHEETS = new Set(['student_addresses']);
 const STUDENT_LINK_EXPIRY_DAYS = 30;
 
 const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
@@ -57,6 +56,10 @@ const stripControlColumns = (row) => {
 
   return payload;
 };
+
+const getConfiguredChildSheets = (metadata) =>
+  Object.keys(metadata?.sheets || {})
+    .filter((sheetName) => sheetName !== 'students');
 
 const parseWorksheetRows = (worksheet, expectedHeaders) => {
   if (!worksheet) {
@@ -214,6 +217,7 @@ export const processFullStudentUploadJob = async (jobId) => {
 
     const { rowsBySheet, totalRows } = await parseWorkbookByMeta(buffer, metadata);
     const studentRows = rowsBySheet.students || [];
+    const childSheets = getConfiguredChildSheets(metadata);
     const validationLogs = [];
     const groupedData = {};
     const seenRefs = new Set();
@@ -244,25 +248,14 @@ export const processFullStudentUploadJob = async (jobId) => {
       }
 
       seenRefs.add(studentRef);
-      groupedData[studentRef] = {
-        student: row,
-        student_addresses: []
-      };
+      groupedData[studentRef] = { student: row };
+      childSheets.forEach((sheetName) => {
+        groupedData[studentRef][sheetName] = [];
+      });
     });
 
     Object.entries(rowsBySheet).forEach(([sheetName, rows]) => {
       if (sheetName === 'students') {
-        return;
-      }
-
-      if (!SUPPORTED_CHILD_SHEETS.has(sheetName)) {
-        rows.forEach((row) => {
-          validationLogs.push(toLogRow(row, 'error', [{
-            field: `${sheetName}.student_ref`,
-            value: row.student_ref,
-            message: `Sheet "${sheetName}" is not supported yet in the multi-table upload flow`
-          }]));
-        });
         return;
       }
 
@@ -350,15 +343,17 @@ export const processFullStudentUploadJob = async (jobId) => {
         committedRows += 1;
         successLogs.push(toLogRow(group.student));
 
-        for (const addressRow of group.student_addresses) {
-          const addressPayload = {
-            ...stripControlColumns(addressRow),
-            student_id: studentId
-          };
-          const addressInsert = buildInsertStatement(config.postgres.schema, 'student_addresses', addressPayload);
-          await client.query(addressInsert.text, addressInsert.values);
-          committedRows += 1;
-          successLogs.push(toLogRow(addressRow));
+        for (const sheetName of childSheets) {
+          for (const childRow of group[sheetName] || []) {
+            const childPayload = {
+              ...stripControlColumns(childRow),
+              student_id: studentId
+            };
+            const childInsert = buildInsertStatement(config.postgres.schema, sheetName, childPayload);
+            await client.query(childInsert.text, childInsert.values);
+            committedRows += 1;
+            successLogs.push(toLogRow(childRow));
+          }
         }
       }
 

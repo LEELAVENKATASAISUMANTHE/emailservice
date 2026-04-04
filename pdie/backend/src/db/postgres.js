@@ -274,3 +274,95 @@ export const listPublicTables = async () => {
     column_count: row.column_count
   }));
 };
+
+export const listPublicTableDetails = async () => {
+  const result = await pool.query(
+    `
+      WITH table_stats AS (
+        SELECT
+          t.table_name,
+          t.table_schema,
+          t.table_type,
+          obj_description(cls.oid, 'pg_class') AS table_comment,
+          pg_total_relation_size(cls.oid)::bigint AS total_size_bytes,
+          pg_relation_size(cls.oid)::bigint AS table_size_bytes,
+          (
+            pg_total_relation_size(cls.oid) - pg_relation_size(cls.oid)
+          )::bigint AS indexes_size_bytes,
+          COALESCE(stat.n_live_tup, 0)::bigint AS estimated_row_count
+        FROM information_schema.tables t
+        JOIN pg_class cls
+          ON cls.relname = t.table_name
+        JOIN pg_namespace ns
+          ON ns.oid = cls.relnamespace
+         AND ns.nspname = t.table_schema
+        LEFT JOIN pg_stat_user_tables stat
+          ON stat.relid = cls.oid
+        WHERE t.table_schema = $1
+          AND t.table_type = 'BASE TABLE'
+      )
+      SELECT
+        ts.table_name,
+        ts.table_schema,
+        ts.table_type,
+        ts.table_comment,
+        ts.total_size_bytes,
+        ts.table_size_bytes,
+        ts.indexes_size_bytes,
+        ts.estimated_row_count,
+        c.ordinal_position,
+        c.column_name,
+        c.data_type,
+        c.udt_name,
+        c.is_nullable,
+        c.column_default,
+        c.is_identity,
+        c.character_maximum_length,
+        c.numeric_precision,
+        c.numeric_scale,
+        c.datetime_precision
+      FROM table_stats ts
+      LEFT JOIN information_schema.columns c
+        ON c.table_schema = ts.table_schema
+       AND c.table_name = ts.table_name
+      ORDER BY ts.table_name, c.ordinal_position
+    `,
+    [config.postgres.schema]
+  );
+
+  return result.rows.reduce((accumulator, row) => {
+    if (!accumulator[row.table_name]) {
+      accumulator[row.table_name] = {
+        table_name: row.table_name,
+        table_schema: row.table_schema,
+        table_type: row.table_type,
+        table_comment: row.table_comment,
+        estimated_row_count: Number(row.estimated_row_count ?? 0),
+        total_size_bytes: Number(row.total_size_bytes ?? 0),
+        table_size_bytes: Number(row.table_size_bytes ?? 0),
+        indexes_size_bytes: Number(row.indexes_size_bytes ?? 0),
+        column_count: 0,
+        columns: []
+      };
+    }
+
+    if (row.column_name) {
+      accumulator[row.table_name].columns.push({
+        ordinal_position: row.ordinal_position,
+        column_name: row.column_name,
+        data_type: row.data_type,
+        udt_name: row.udt_name,
+        is_nullable: row.is_nullable,
+        column_default: row.column_default,
+        is_identity: row.is_identity,
+        character_maximum_length: row.character_maximum_length,
+        numeric_precision: row.numeric_precision,
+        numeric_scale: row.numeric_scale,
+        datetime_precision: row.datetime_precision
+      });
+      accumulator[row.table_name].column_count += 1;
+    }
+
+    return accumulator;
+  }, {});
+};
