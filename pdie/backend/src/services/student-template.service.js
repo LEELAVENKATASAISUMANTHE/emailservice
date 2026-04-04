@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 import ExcelJS from 'exceljs';
-import { getTablesMeta, getTablesRelatedToBaseTable } from '../db/postgres.js';
+import { getTablesMeta, getTablesRelatedToBaseTable, listPublicTableDetails } from '../db/postgres.js';
 import { uploadBuffer } from '../db/minio.js';
 import { TemplateModel } from '../models/Template.js';
 
 const STUDENT_BASE_TABLE = 'students';
 const STUDENT_REF_HEADER = 'student_ref';
-const TEMPLATE_VERSION = 'v3';
+const TEMPLATE_VERSION = 'v4';
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -69,6 +69,61 @@ const styleSheet = (worksheet, headers) => {
   };
 };
 
+const styleSchemaInfoSheet = (worksheet) => {
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.columns = [
+    { header: 'sheet_name', key: 'sheet_name', width: 24 },
+    { header: 'column_name', key: 'column_name', width: 26 },
+    { header: 'included_in_upload', key: 'included_in_upload', width: 18 },
+    { header: 'data_type', key: 'data_type', width: 24 },
+    { header: 'nullable', key: 'nullable', width: 12 },
+    { header: 'default_value', key: 'default_value', width: 36 },
+    { header: 'notes', key: 'notes', width: 44 }
+  ];
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFDDEAFE' }
+  };
+};
+
+const buildSchemaInfoRows = (tables, tablesMeta, tableDetails, excludedColumns) =>
+  tables.flatMap((table) => {
+    const hiddenColumns = new Set(excludedColumns[table] || []);
+    if (table !== STUDENT_BASE_TABLE) {
+      hiddenColumns.add('student_id');
+    }
+
+    return (tableDetails[table]?.columns || tablesMeta[table] || []).map((column) => {
+      const notes = [];
+
+      if (column.column_name === 'student_id' && table !== STUDENT_BASE_TABLE) {
+        notes.push('Linked automatically from student_ref');
+      }
+
+      if ((excludedColumns[table] || []).includes(column.column_name)) {
+        notes.push('Auto-generated or system-managed');
+      }
+
+      if (column.column_default) {
+        notes.push('Has database default');
+      }
+
+      return {
+        sheet_name: table,
+        column_name: column.column_name,
+        included_in_upload: hiddenColumns.has(column.column_name) ? 'no' : 'yes',
+        data_type: column.data_type,
+        nullable: column.is_nullable,
+        default_value: column.column_default || '',
+        notes: notes.join('; ')
+      };
+    });
+  });
+
 const buildTemplateId = (tables) =>
   sha256(`students-full|${TEMPLATE_VERSION}|${tables.join(',')}`);
 
@@ -89,6 +144,7 @@ export const ensureFullStudentTemplate = async () => {
   }
 
   const tablesMeta = await getTablesMeta(tables);
+  const tableDetails = await listPublicTableDetails();
   const excludedColumns = buildExcludedColumns(tablesMeta);
   const workbook = new ExcelJS.Workbook();
   const headerMap = [];
@@ -103,6 +159,11 @@ export const ensureFullStudentTemplate = async () => {
     headerMap.push(...headers);
   });
 
+  const schemaInfoSheet = workbook.addWorksheet('schema_info');
+  styleSchemaInfoSheet(schemaInfoSheet);
+  buildSchemaInfoRows(tables, tablesMeta, tableDetails, excludedColumns)
+    .forEach((row) => schemaInfoSheet.addRow(row));
+
   const metaSheet = workbook.addWorksheet('_meta');
   metaSheet.state = 'veryHidden';
   metaSheet.getCell('A1').value = JSON.stringify({
@@ -115,7 +176,8 @@ export const ensureFullStudentTemplate = async () => {
     referenceColumn: STUDENT_REF_HEADER,
     workbookMode: 'multi-sheet',
     sheets,
-    excludedColumns
+    excludedColumns,
+    schemaInfoSheet: 'schema_info'
   });
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
@@ -137,7 +199,8 @@ export const ensureFullStudentTemplate = async () => {
       templateType: 'students-full',
       workbookMode: 'multi-sheet',
       referenceColumn: STUDENT_REF_HEADER,
-      sheets
+      sheets,
+      schemaInfoSheet: 'schema_info'
     },
     minioKey,
     createdAt: new Date()

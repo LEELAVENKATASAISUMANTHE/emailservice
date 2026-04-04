@@ -35,6 +35,25 @@ const isStudentsOnlyTemplate = (template) =>
   template.tables.length === 1 &&
   template.tables[0] === 'students';
 
+const buildStudentSheetDetails = (template, sheetNames = []) =>
+  sheetNames.map((sheetName) => ({
+    sheetName,
+    columns: (template.schemaMeta?.[sheetName] || [])
+      .map((column) => column.column_name)
+      .filter((columnName) => {
+        if ((template.excludedColumns?.[sheetName] || []).includes(columnName)) {
+          return false;
+        }
+
+        if (sheetName !== 'students' && columnName === 'student_id') {
+          return false;
+        }
+
+        return true;
+      }),
+    rowReference: 'student_ref'
+  }));
+
 export const getStudents = async (_req, res) => {
   await ensureStudentLinksTable();
 
@@ -248,6 +267,7 @@ export const getFullStudentTemplate = async (_req, res) => {
     workbookMode: 'multi-sheet',
     referenceColumn: 'student_ref',
     sheetNames,
+    sheetDetails: buildStudentSheetDetails(template, sheetNames),
     downloadUrl: `/api/templates/${payload.templateId}/download`
   });
 };

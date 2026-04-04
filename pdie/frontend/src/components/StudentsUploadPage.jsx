@@ -133,6 +133,22 @@ export default function StudentsUploadPage({ onJobCreated }) {
               </div>
             </div>
           ) : null}
+
+          {templateInfo?.sheetDetails?.length ? (
+            <div className="template-meta">
+              <div className="section-label">Sheet Columns</div>
+              <div className="sheet-details-list">
+                {templateInfo.sheetDetails.map((sheet) => (
+                  <div key={sheet.sheetName} className="sheet-detail-card">
+                    <div className="sheet-detail-title">{sheet.sheetName}</div>
+                    <div className="sheet-detail-columns">
+                      {['student_ref', ...(sheet.columns || [])].join(', ')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="students-upload-card students-upload-form">

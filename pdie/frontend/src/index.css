@@ -404,6 +404,34 @@ button:disabled {
   letter-spacing: 0.03em;
 }
 
+.sheet-details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet-detail-card {
+  border: 1px solid var(--border-color);
+  background: #FAFAFA;
+  padding: 12px 14px;
+}
+
+.sheet-detail-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.sheet-detail-columns {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #4B5563;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
 .students-upload-form {
   display: flex;
   flex-direction: column;
