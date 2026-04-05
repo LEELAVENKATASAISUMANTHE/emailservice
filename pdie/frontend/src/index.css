@@ -169,6 +169,25 @@ button, input {
   transform: rotate(45deg);
 }
 
+.table-field-group {
+  border: 1px solid var(--border-color);
+  background: #FFFFFF;
+  padding: 16px 18px;
+}
+
+.table-group-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  margin-bottom: 12px;
+}
+
+.table-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .schema-preview {
   background: #E5E7EB;
   padding: 24px;

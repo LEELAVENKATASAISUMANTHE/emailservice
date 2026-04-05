@@ -12,7 +12,7 @@ async function parseJsonResponse(response) {
 
 export default function TablePicker({ template, onTemplateCreated }) {
   const [tables, setTables] = useState([]);
-  const [selectedTables, setSelectedTables] = useState([]);
+  const [selectedFields, setSelectedFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
       setError('');
 
       try {
-        const response = await fetch(`${apiBase}/api/tables`);
+        const response = await fetch(`${apiBase}/api/templates/tables`);
         const data = await parseJsonResponse(response);
 
         if (!response.ok) {
@@ -33,7 +33,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
         }
 
         if (!cancelled) {
-          setTables(Array.isArray(data) ? data : []);
+          setTables(Array.isArray(data.tables) ? data.tables : []);
         }
       } catch (fetchError) {
         if (!cancelled) {
@@ -52,11 +52,13 @@ export default function TablePicker({ template, onTemplateCreated }) {
     };
   }, []);
 
-  const toggleSelection = (tableName) => {
-    setSelectedTables((current) =>
-      current.includes(tableName)
-        ? current.filter((value) => value !== tableName)
-        : [...current, tableName]
+  const toggleFieldSelection = (tableName, fieldName) => {
+    const fieldKey = `${tableName}.${fieldName}`;
+
+    setSelectedFields((current) =>
+      current.includes(fieldKey)
+        ? current.filter((value) => value !== fieldKey)
+        : [...current, fieldKey]
     );
   };
 
@@ -66,6 +68,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
     setError('');
 
     try {
+      const selectedTables = [...new Set(selectedFields.map((value) => value.split('.')[0]))];
       const response = await fetch(`${apiBase}/api/templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,20 +132,31 @@ export default function TablePicker({ template, onTemplateCreated }) {
           <div className="section-label">Source Selection</div>
           {loading ? <p>Loading...</p> : null}
           {!loading && tables.map((table) => (
-            <label className="table-option" key={table.table_name}>
-              <input
-                type="checkbox"
-                checked={selectedTables.includes(table.table_name)}
-                onChange={() => toggleSelection(table.table_name)}
-              />
-              <span>{table.table_name}</span>
-            </label>
+            <div className="table-field-group" key={table.name}>
+              <h3 className="table-group-title">{table.name}</h3>
+              <div className="table-field-list">
+                {table.fields.map((field) => {
+                  const fieldKey = `${table.name}.${field}`;
+
+                  return (
+                    <label className="table-option" key={fieldKey}>
+                      <input
+                        type="checkbox"
+                        checked={selectedFields.includes(fieldKey)}
+                        onChange={() => toggleFieldSelection(table.name, field)}
+                      />
+                      <span>{field}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           ))}
           
           <button 
             type="submit" 
             className="btn-secondary" 
-            disabled={submitting || !selectedTables.length}
+            disabled={submitting || !selectedFields.length}
             style={{ width: 'fit-content', marginTop: '16px' }}
           >
             {submitting ? 'Generating...' : 'Generate Target'}
@@ -161,18 +175,14 @@ export default function TablePicker({ template, onTemplateCreated }) {
         </div>
 
         <div className="schema-preview-container">
-          <div className="section-label" style={{ marginBottom: '12px' }}>Schema Preview</div>
+          <div className="section-label" style={{ marginBottom: '12px' }}>Selected Fields</div>
           <div className="schema-preview">
-            {!selectedTables.length && <div>No table selected...</div>}
-            {selectedTables.includes('Master_Financial_Ledger_2024') || selectedTables.length > 0 ? (
-               <>
-                 <div className="schema-row"><span>col_uuid</span> <span className="type">UUID</span></div>
-                 <div className="schema-row"><span>timestamp_utc</span> <span className="type">TIMESTAMP</span></div>
-                 <div className="schema-row"><span>amount_decimal</span> <span className="type">NUMERIC</span></div>
-                 <div className="schema-row"><span>entity_ref_id</span> <span className="type">VARCHAR</span></div>
-                 <div className="schema-row"><span>status_code</span> <span className="type">INT4</span></div>
-               </>
-            ) : null}
+            {!selectedFields.length && <div>No fields selected...</div>}
+            {selectedFields.map((fieldKey) => (
+              <div className="schema-row" key={fieldKey}>
+                <span>{fieldKey}</span>
+              </div>
+            ))}
           </div>
         </div>
       </form>

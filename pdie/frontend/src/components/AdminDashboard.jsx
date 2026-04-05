@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import JobStatus from './JobStatus.jsx';
 import StudentsUploadPage from './StudentsUploadPage.jsx';
+import TablePicker from './TablePicker.jsx';
 
 export default function AdminDashboard() {
   const [jobId, setJobId] = useState('');
+  const [template, setTemplate] = useState(null);
 
   return (
     <div className="app-shell">
@@ -23,6 +25,7 @@ export default function AdminDashboard() {
           </section>
 
           <div className="dashboard-grid">
+            <TablePicker template={template} onTemplateCreated={setTemplate} />
             <StudentsUploadPage onJobCreated={setJobId} />
             <JobStatus jobId={jobId} />
           </div>
