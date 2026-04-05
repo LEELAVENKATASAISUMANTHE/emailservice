@@ -11,8 +11,8 @@ export const listTemplates = async (req, res) => {
 const sanitizeFilename = (value) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
 
 export const generateTemplate = async (req, res) => {
-  const { tables } = req.body;
-  const template = await ensureTemplate(tables);
+  const { tables, fields } = req.body;
+  const template = await ensureTemplate({ tables, fields });
   const payload = template.toObject ? template.toObject() : template;
   delete payload._id;
   delete payload.schemaMeta;

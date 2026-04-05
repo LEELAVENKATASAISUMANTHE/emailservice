@@ -68,11 +68,10 @@ export default function TablePicker({ template, onTemplateCreated }) {
     setError('');
 
     try {
-      const selectedTables = [...new Set(selectedFields.map((value) => value.split('.')[0]))];
       const response = await fetch(`${apiBase}/api/templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tables: selectedTables })
+        body: JSON.stringify({ fields: selectedFields })
       });
 
       const data = await parseJsonResponse(response);

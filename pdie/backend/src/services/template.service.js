@@ -7,6 +7,39 @@ import { HttpError } from '../middlewares/errorHandler.js';
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
+const normalizeTableNames = (tableNames) => [...new Set(
+  (Array.isArray(tableNames) ? tableNames : [])
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+)];
+
+const normalizeSelectedFields = (fieldRefs) => {
+  const seen = new Set();
+  const normalized = [];
+
+  (Array.isArray(fieldRefs) ? fieldRefs : []).forEach((value) => {
+    const rawValue = String(value || '').trim().toLowerCase();
+    const separatorIndex = rawValue.indexOf('.');
+
+    if (separatorIndex <= 0 || separatorIndex === rawValue.length - 1) {
+      return;
+    }
+
+    const table = rawValue.slice(0, separatorIndex).trim();
+    const column = rawValue.slice(separatorIndex + 1).trim();
+    const key = `${table}.${column}`;
+
+    if (!table || !column || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    normalized.push({ table, column, key });
+  });
+
+  return normalized;
+};
+
 const buildExcludedColumns = (tablesMeta) => {
   const auditNames = new Set([
     'id', 'created_at', 'updated_at', 'deleted_at',
@@ -86,8 +119,13 @@ const topologicalSortTables = (tables, foreignKeys) => {
   return order;
 };
 
-const buildTemplateId = (tables, joinKeys) =>
-  sha256(`${[...tables].sort().join(',')}|${[...joinKeys].sort().join(',')}`);
+const buildTemplateId = ({ tables, joinKeys, selectedFields }) => {
+  if (selectedFields?.length) {
+    return sha256(`fields|${selectedFields.join(',')}`);
+  }
+
+  return sha256(`${[...tables].sort().join(',')}|${[...joinKeys].sort().join(',')}`);
+};
 
 const resolveJoinKeyAssignments = (joinKeys, foreignKeys, excludedColumns) => {
   const seen = new Set();
@@ -113,38 +151,22 @@ const resolveJoinKeyAssignments = (joinKeys, foreignKeys, excludedColumns) => {
   return assignments;
 };
 
-export const ensureTemplate = async (tableNames) => {
-  if (!Array.isArray(tableNames) || !tableNames.length) {
-    throw new HttpError(400, 'tables must be a non-empty array');
-  }
+export const ensureTemplate = async (input) => {
+  const fieldsInput = Array.isArray(input) ? [] : input?.fields;
+  const tablesInput = Array.isArray(input) ? input : input?.tables;
 
-  const normalizedTables = [...new Set(
-    tableNames
-      .map((value) => String(value || '').trim().toLowerCase())
-      .filter(Boolean)
-  )];
+  const normalizedFields = normalizeSelectedFields(fieldsInput);
+  const normalizedTables = normalizedFields.length
+    ? [...new Set(normalizedFields.map((field) => field.table))]
+    : normalizeTableNames(tablesInput);
 
   if (!normalizedTables.length) {
-    throw new HttpError(400, 'tables must be a non-empty array');
+    throw new HttpError(400, normalizedFields.length
+      ? 'fields must contain valid table.column values'
+      : 'tables must be a non-empty array');
   }
 
   const foreignKeys = await getForeignKeys(normalizedTables);
-  const joinKeys = [...new Set(
-    foreignKeys
-      .filter((foreignKey) =>
-        normalizedTables.includes(foreignKey.from_table) &&
-        normalizedTables.includes(foreignKey.to_table)
-      )
-      .map((foreignKey) => foreignKey.from_column)
-      .sort()
-  )];
-
-  const templateId = buildTemplateId(normalizedTables, joinKeys);
-  const existing = await TemplateModel.findOne({ templateId });
-  if (existing) {
-    return existing;
-  }
-
   const tablesMeta = await getTablesMeta(normalizedTables);
   const missingTables = normalizedTables.filter((table) => !tablesMeta[table]?.length);
   if (missingTables.length) {
@@ -152,25 +174,63 @@ export const ensureTemplate = async (tableNames) => {
   }
 
   const excludedColumns = buildExcludedColumns(tablesMeta);
+  const joinKeys = normalizedFields.length
+    ? []
+    : [...new Set(
+      foreignKeys
+        .filter((foreignKey) =>
+          normalizedTables.includes(foreignKey.from_table) &&
+          normalizedTables.includes(foreignKey.to_table)
+        )
+        .map((foreignKey) => foreignKey.from_column)
+        .sort()
+    )];
+  const selectedFields = normalizedFields.length
+    ? normalizedFields.map((field) => field.key)
+    : [];
+  const templateId = buildTemplateId({ tables: normalizedTables, joinKeys, selectedFields });
+  const existing = await TemplateModel.findOne({ templateId });
+  if (existing) {
+    return existing;
+  }
+
+  if (normalizedFields.length) {
+    const missingFields = normalizedFields.filter(
+      ({ table, column }) => !(tablesMeta[table] || []).some((entry) => entry.column_name === column)
+    );
+
+    if (missingFields.length) {
+      throw new HttpError(400, `Unknown fields: ${missingFields.map((field) => field.key).join(', ')}`);
+    }
+  }
+
   const tableOrder = topologicalSortTables(normalizedTables, foreignKeys);
-  const headerMap = resolveJoinKeyAssignments(joinKeys, foreignKeys, excludedColumns);
+  const headerMap = normalizedFields.length
+    ? normalizedFields.map(({ table, column, key }) => ({
+      header: key,
+      table,
+      column
+    }))
+    : resolveJoinKeyAssignments(joinKeys, foreignKeys, excludedColumns);
 
-  tableOrder.forEach((table) => {
-    (tablesMeta[table] || []).forEach((column) => {
-      if ((excludedColumns[table] || []).includes(column.column_name)) {
-        return;
-      }
-      if (joinKeys.includes(column.column_name)) {
-        return;
-      }
+  if (!normalizedFields.length) {
+    tableOrder.forEach((table) => {
+      (tablesMeta[table] || []).forEach((column) => {
+        if ((excludedColumns[table] || []).includes(column.column_name)) {
+          return;
+        }
+        if (joinKeys.includes(column.column_name)) {
+          return;
+        }
 
-      headerMap.push({
-        header: `${table}__${column.column_name}`,
-        table,
-        column: column.column_name
+        headerMap.push({
+          header: `${table}__${column.column_name}`,
+          table,
+          column: column.column_name
+        });
       });
     });
-  });
+  }
 
   const workbook = new ExcelJS.Workbook();
   const dataSheet = workbook.addWorksheet('data');
@@ -195,6 +255,7 @@ export const ensureTemplate = async (tableNames) => {
   metaSheet.getCell('A1').value = JSON.stringify({
     templateId,
     tables: normalizedTables,
+    selectedFields,
     joinKeys,
     excludedColumns
   });
@@ -208,6 +269,7 @@ export const ensureTemplate = async (tableNames) => {
   return TemplateModel.create({
     templateId,
     tables: normalizedTables,
+    selectedFields,
     joinKeys,
     headerMap,
     excludedColumns,

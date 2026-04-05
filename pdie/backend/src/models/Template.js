@@ -13,6 +13,7 @@ const TemplateSchema = new mongoose.Schema(
   {
     templateId: { type: String, required: true, unique: true, index: true },
     tables: [{ type: String, required: true }],
+    selectedFields: [{ type: String, required: true }],
     joinKeys: [{ type: String, required: true }],
     headerMap: { type: [HeaderMapSchema], default: [] },
     excludedColumns: { type: Object, default: {} },
