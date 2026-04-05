@@ -1,6 +1,13 @@
 import { config } from '../config/index.js';
 import { getTablesRelatedToBaseTable, listPublicTableDetails, listPublicTables } from '../db/postgres.js';
 
+export const listTemplateTables = async (_req, res) => {
+  const tables = await listPublicTables();
+  res.json({
+    tables: tables.map((table) => table.table_name)
+  });
+};
+
 export const listTables = async (_req, res) => {
   const tables = await listPublicTables();
   res.json(tables);

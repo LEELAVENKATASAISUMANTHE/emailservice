@@ -9,12 +9,18 @@ import {
   getStudentTemplate,
   uploadStudents
 } from '../controllers/students.controller.js';
-import { getStudentRelatedTables, listTableDetails, listTables } from '../controllers/tables.controller.js';
+import {
+  getStudentRelatedTables,
+  listTableDetails,
+  listTables,
+  listTemplateTables
+} from '../controllers/tables.controller.js';
 import { downloadTemplate, generateTemplate, listTemplates } from '../controllers/template.controller.js';
 import { getJobReport, getJobStatus, uploadExcel, uploadMiddleware } from '../controllers/upload.controller.js';
 
 const router = Router();
 
+router.get('/templates/tables', listTemplateTables);
 router.get('/tables', listTables);
 router.get('/tables/details', listTableDetails);
 router.get('/tables/students/related', getStudentRelatedTables);

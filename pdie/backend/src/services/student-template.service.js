@@ -90,6 +90,24 @@ const styleSchemaInfoSheet = (worksheet) => {
   };
 };
 
+const styleWorkbookGuideSheet = (worksheet) => {
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.columns = [
+    { header: 'sheet_name', key: 'sheet_name', width: 28 },
+    { header: 'row_reference', key: 'row_reference', width: 18 },
+    { header: 'column_count', key: 'column_count', width: 14 },
+    { header: 'columns', key: 'columns', width: 120 }
+  ];
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFDE68A' }
+  };
+};
+
 const buildSchemaInfoRows = (tables, tablesMeta, tableDetails, excludedColumns) =>
   tables.flatMap((table) => {
     const hiddenColumns = new Set(excludedColumns[table] || []);
@@ -162,6 +180,9 @@ export const ensureFullStudentTemplate = async () => {
   const headerMap = [];
   const sheets = {};
 
+  const guideSheet = workbook.addWorksheet('README');
+  styleWorkbookGuideSheet(guideSheet);
+
   tables.forEach((table) => {
     const headers = sanitizeHeadersForTable(table, tablesMeta[table] || [], excludedColumns);
     const sheet = workbook.addWorksheet(table);
@@ -169,6 +190,12 @@ export const ensureFullStudentTemplate = async () => {
 
     sheets[table] = headers.map((entry) => entry.header);
     headerMap.push(...headers);
+    guideSheet.addRow({
+      sheet_name: table,
+      row_reference: STUDENT_REF_HEADER,
+      column_count: headers.length,
+      columns: headers.join(', ')
+    });
   });
 
   const schemaInfoSheet = workbook.addWorksheet('schema_info');
