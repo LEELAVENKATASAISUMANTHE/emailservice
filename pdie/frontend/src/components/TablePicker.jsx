@@ -10,6 +10,13 @@ async function parseJsonResponse(response) {
   return JSON.parse(text);
 }
 
+function getDownloadFilename(response, fallbackName) {
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+
+  return match?.[1] || fallbackName;
+}
+
 export default function TablePicker({ template, onTemplateCreated }) {
   const [tables, setTables] = useState([]);
   const [selectedFields, setSelectedFields] = useState([]);
@@ -62,6 +69,30 @@ export default function TablePicker({ template, onTemplateCreated }) {
     );
   };
 
+  const downloadTemplateFile = async (templateData) => {
+    if (!templateData?.templateId) {
+      throw new Error('Template download is not available');
+    }
+
+    const response = await fetch(`${apiBase}/api/templates/${templateData.templateId}/download`);
+    if (!response.ok) {
+      const data = await parseJsonResponse(response);
+      throw new Error(data.error || 'Failed to download template');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const fallbackName = `template_${(templateData.tables || []).join('_') || 'download'}.xlsx`;
+
+    link.href = url;
+    link.download = getDownloadFilename(response, fallbackName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitting(true);
@@ -80,6 +111,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
       }
 
       onTemplateCreated(data);
+      await downloadTemplateFile(data);
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -88,26 +120,9 @@ export default function TablePicker({ template, onTemplateCreated }) {
   };
 
   const handleDownload = async () => {
-    if (!template?.templateId) {
-      return;
-    }
     setError('');
     try {
-      const response = await fetch(`${apiBase}/api/templates/${template.templateId}/download`);
-      if (!response.ok) {
-        const data = await parseJsonResponse(response);
-        throw new Error(data.error || 'Failed to download template');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `template_${template.tables.join('_')}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await downloadTemplateFile(template);
     } catch (downloadError) {
       setError(downloadError.message);
     }
@@ -158,7 +173,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
             disabled={submitting || !selectedFields.length}
             style={{ width: 'fit-content', marginTop: '16px' }}
           >
-            {submitting ? 'Generating...' : 'Generate Target'}
+            {submitting ? 'Generating...' : 'Generate Template'}
           </button>
           
           {template?.templateId && (
