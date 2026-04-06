@@ -260,6 +260,31 @@ export default function TablePicker({ template, onTemplateCreated }) {
           {parsedData && (
             <>
               <div className="section-label" style={{ marginTop: '16px', marginBottom: '12px' }}>Parsed Upload Result</div>
+              <div style={{ marginBottom: '12px', fontSize: '0.85rem' }}>
+                Total: {parsedData.total ?? 0} | Valid: {parsedData.validCount ?? 0} | Invalid: {parsedData.invalidCount ?? 0}
+              </div>
+
+              {parsedData?.invalidRows?.length > 0 && (
+                <>
+                  <div className="section-label" style={{ marginBottom: '12px' }}>Validation Errors</div>
+                  <pre
+                    style={{
+                      margin: '0 0 12px 0',
+                      padding: '12px',
+                      overflow: 'auto',
+                      borderRadius: '12px',
+                      background: 'rgba(127, 29, 29, 0.95)',
+                      color: '#fee2e2',
+                      fontSize: '0.78rem',
+                      lineHeight: 1.5,
+                      maxHeight: '220px'
+                    }}
+                  >
+                    {JSON.stringify(parsedData.invalidRows, null, 2)}
+                  </pre>
+                </>
+              )}
+
               <pre
                 style={{
                   margin: 0,

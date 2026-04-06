@@ -10,6 +10,26 @@ export const listTemplates = async (req, res) => {
 };
 
 const sanitizeFilename = (value) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateRow(row) {
+  const errors = [];
+
+  if (!String(row['students.name'] || '').trim()) {
+    errors.push('Name is required');
+  }
+
+  if (!String(row['students.email'] || '').trim()) {
+    errors.push('Email is required');
+  }
+
+  const email = String(row['students.email'] || '').trim();
+  if (email && !emailPattern.test(email)) {
+    errors.push('Invalid email format');
+  }
+
+  return errors;
+}
 
 export const generateTemplate = async (req, res) => {
   const { tables, fields } = req.body;
@@ -50,10 +70,31 @@ export const uploadTemplateWorkbook = async (req, res) => {
   }
 
   const parsed = await parseWorkbookRows(req.file.buffer);
+  const validRows = [];
+  const invalidRows = [];
+
+  parsed.rows.forEach((row, index) => {
+    const errors = validateRow(row);
+
+    if (errors.length) {
+      invalidRows.push({
+        rowNumber: index + 2,
+        data: row,
+        errors
+      });
+      return;
+    }
+
+    validRows.push(row);
+  });
 
   res.json({
-    message: 'File parsed successfully',
+    message: 'Validation completed',
     headers: parsed.headers,
-    rows: parsed.rows
+    total: parsed.rows.length,
+    validCount: validRows.length,
+    invalidCount: invalidRows.length,
+    validRows,
+    invalidRows
   });
 };
