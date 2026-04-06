@@ -13,19 +13,17 @@ async function parseJsonResponse(response) {
 
 const formatDate = (value) => {
   if (!value) {
-    return 'Not sent';
+    return 'Not available';
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Not sent' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleString();
 };
 
 export default function StudentsListPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [resendingId, setResendingId] = useState('');
-  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +31,6 @@ export default function StudentsListPage() {
     const loadStudents = async () => {
       setLoading(true);
       setError('');
-      setNotice('');
 
       try {
         const response = await fetch(`${apiBase}/api/students`);
@@ -63,68 +60,6 @@ export default function StudentsListPage() {
     };
   }, []);
 
-  const resendLink = async (studentId) => {
-    setResendingId(String(studentId));
-    setError('');
-    setNotice('');
-
-    try {
-      const response = await fetch(`${apiBase}/api/student-link/${studentId}/resend`, {
-        method: 'POST'
-      });
-      const data = await parseJsonResponse(response);
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to resend link');
-      }
-
-      setNotice(`Link emailed to ${data.email}.`);
-    } catch (requestError) {
-      setError(requestError.message || 'Failed to resend link');
-    } finally {
-      setResendingId('');
-    }
-  };
-
-  const generateAndSendLink = async (studentId) => {
-    setResendingId(String(studentId));
-    setError('');
-    setNotice('');
-
-    try {
-      const response = await fetch(`${apiBase}/api/student-link/${studentId}/generate`, {
-        method: 'POST'
-      });
-      const data = await parseJsonResponse(response);
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate link');
-      }
-
-      setStudents((current) => current.map((student) =>
-        String(student.student_id) === String(studentId)
-          ? {
-            ...student,
-            link_status: 'pending',
-            link_created_at: new Date().toISOString()
-          }
-          : student
-      ));
-      setNotice(`New link generated and emailed to ${data.email}.`);
-    } catch (requestError) {
-      setError(requestError.message || 'Failed to generate link');
-    } finally {
-      setResendingId('');
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    if (status === 'pending') return 'Pending';
-    if (status === 'opened') return 'Opened';
-    if (status === 'completed') return 'Completed';
-    return 'No Link';
-  };
-
   return (
     <div className="app-shell">
       <main className="main-content">
@@ -134,7 +69,7 @@ export default function StudentsListPage() {
               <div>
                 <h1>Students</h1>
                 <p>
-                  Review the latest imported students, their email targets, and the current status of their access link.
+                  Review all student records from the `students` table with the core profile, academic, and contact fields.
                 </p>
               </div>
               <Link to="/" className="btn-secondary page-link">Back To Upload</Link>
@@ -148,58 +83,59 @@ export default function StudentsListPage() {
 
             {loading ? <p className="list-feedback">Loading students...</p> : null}
             {error ? <p className="list-feedback list-feedback-error">{error}</p> : null}
-            {notice ? <p className="list-feedback list-feedback-success">{notice}</p> : null}
 
             {!loading && !error ? (
               <div className="students-table-wrap">
                 <table className="jobs-table students-table">
                   <thead>
                     <tr>
-                      <th>Student</th>
+                      <th>Student ID</th>
+                      <th>First Name</th>
+                      <th>Middle Name</th>
+                      <th>Last Name</th>
+                      <th>Full Name</th>
+                      <th>Gender</th>
+                      <th>DOB</th>
                       <th>Email</th>
+                      <th>Alt Email</th>
+                      <th>College Email</th>
+                      <th>Mobile</th>
+                      <th>Emergency Contact</th>
+                      <th>Nationality</th>
+                      <th>Placement Fee Status</th>
+                      <th>Student Photo Path</th>
+                      <th>Created At</th>
                       <th>Branch</th>
-                      <th>Status</th>
-                      <th>Link Created</th>
-                      <th>Action</th>
+                      <th>Graduation Year</th>
+                      <th>Semester</th>
                     </tr>
                   </thead>
                   <tbody>
                     {students.length ? students.map((student) => (
                       <tr key={student.student_id}>
-                        <td>
-                          <div className="students-table-name">{student.student_name || 'Unnamed student'}</div>
-                          <div className="students-table-sub">{student.student_id}</div>
-                        </td>
-                        <td>{student.email || student.college_email || 'Not available'}</td>
+                        <td>{student.student_id}</td>
+                        <td>{student.first_name || 'Not available'}</td>
+                        <td>{student.middle_name || 'Not available'}</td>
+                        <td>{student.last_name || 'Not available'}</td>
+                        <td>{student.full_name || 'Not available'}</td>
+                        <td>{student.gender || 'Not available'}</td>
+                        <td>{formatDate(student.dob)}</td>
+                        <td>{student.email || 'Not available'}</td>
+                        <td>{student.alt_email || 'Not available'}</td>
+                        <td>{student.college_email || 'Not available'}</td>
+                        <td>{student.mobile || 'Not available'}</td>
+                        <td>{student.emergency_contact || 'Not available'}</td>
+                        <td>{student.nationality || 'Not available'}</td>
+                        <td>{student.placement_fee_status || 'Not available'}</td>
+                        <td>{student.student_photo_path || 'Not available'}</td>
+                        <td>{formatDate(student.created_at)}</td>
                         <td>{student.branch || 'Not available'}</td>
-                        <td>
-                          <span className={`status-pill status-${student.link_status || 'none'}`}>
-                            {getStatusLabel(student.link_status)}
-                          </span>
-                        </td>
-                        <td>{formatDate(student.link_created_at)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-secondary students-action"
-                            onClick={() => (
-                              student.link_status
-                                ? resendLink(student.student_id)
-                                : generateAndSendLink(student.student_id)
-                            )}
-                            disabled={resendingId === String(student.student_id)}
-                          >
-                            {resendingId === String(student.student_id)
-                              ? 'Sending...'
-                              : student.link_status
-                                ? 'Resend'
-                                : 'Generate + Send'}
-                          </button>
-                        </td>
+                        <td>{student.graduation_year || 'Not available'}</td>
+                        <td>{student.semester || 'Not available'}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan="6" className="jobs-empty-state">No students found yet.</td>
+                        <td colSpan="18" className="jobs-empty-state">No students found yet.</td>
                       </tr>
                     )}
                   </tbody>

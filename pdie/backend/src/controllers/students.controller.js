@@ -55,36 +55,30 @@ const buildStudentSheetDetails = (template, sheetNames = []) =>
   }));
 
 export const getStudents = async (_req, res) => {
-  await ensureStudentLinksTable();
-
   const result = await pgPool.query(
     `
       SELECT
         s.student_id,
-        COALESCE(
-          NULLIF(TRIM(s.full_name), ''),
-          NULLIF(TRIM(CONCAT_WS(' ', s.first_name, s.middle_name, s.last_name)), '')
-        ) AS student_name,
         s.first_name,
         s.middle_name,
         s.last_name,
         s.full_name,
+        s.gender,
+        s.dob,
         s.email,
+        s.alt_email,
         s.college_email,
+        s.mobile,
+        s.emergency_contact,
+        s.nationality,
+        s.placement_fee_status,
+        s.student_photo_path,
+        s.created_at,
         s.branch,
         s.graduation_year,
-        sl.status AS link_status,
-        sl.created_at AS link_created_at
+        s.semester
       FROM ${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier('students')} s
-      LEFT JOIN LATERAL (
-        SELECT status, created_at
-        FROM ${quoteIdentifier(config.postgres.schema)}.${quoteIdentifier('student_links')}
-        WHERE student_id = s.student_id
-        ORDER BY created_at DESC NULLS LAST, id DESC
-        LIMIT 1
-      ) sl ON TRUE
       ORDER BY s.student_id DESC
-      LIMIT 100
     `
   );
 
