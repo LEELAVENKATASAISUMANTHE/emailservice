@@ -22,6 +22,9 @@ export default function TablePicker({ template, onTemplateCreated }) {
   const [selectedFields, setSelectedFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState(null);
+  const [parsedData, setParsedData] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -128,6 +131,38 @@ export default function TablePicker({ template, onTemplateCreated }) {
     }
   };
 
+  const handleUpload = async () => {
+    if (!file) {
+      setError('Select an Excel file first');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${apiBase}/api/templates/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await parseJsonResponse(response);
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload Excel');
+      }
+
+      setParsedData(data);
+      console.log('Parsed Excel data:', data);
+    } catch (uploadError) {
+      setError(uploadError.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="panel">
       <div className="panel-subtitle">Configuration Module</div>
@@ -177,14 +212,37 @@ export default function TablePicker({ template, onTemplateCreated }) {
           </button>
           
           {template?.templateId && (
-            <button 
-              type="button" 
-              className="btn-primary" 
-              onClick={handleDownload}
-              style={{ width: 'fit-content', marginTop: '8px' }}
-            >
-              Download .xlsx
-            </button>
+            <>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                onClick={handleDownload}
+                style={{ width: 'fit-content', marginTop: '8px' }}
+              >
+                Download .xlsx
+              </button>
+
+              <div style={{ marginTop: '16px' }}>
+                <div className="section-label" style={{ marginBottom: '8px' }}>Upload Filled Excel</div>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={(event) => {
+                    setFile(event.target.files?.[0] || null);
+                    setParsedData(null);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  style={{ width: 'fit-content', marginTop: '8px' }}
+                >
+                  {uploading ? 'Uploading...' : 'Upload Excel'}
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -198,6 +256,27 @@ export default function TablePicker({ template, onTemplateCreated }) {
               </div>
             ))}
           </div>
+
+          {parsedData && (
+            <>
+              <div className="section-label" style={{ marginTop: '16px', marginBottom: '12px' }}>Parsed Upload Result</div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '12px',
+                  overflow: 'auto',
+                  borderRadius: '12px',
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  color: '#e2e8f0',
+                  fontSize: '0.78rem',
+                  lineHeight: 1.5,
+                  maxHeight: '320px'
+                }}
+              >
+                {JSON.stringify(parsedData, null, 2)}
+              </pre>
+            </>
+          )}
         </div>
       </form>
     </div>
