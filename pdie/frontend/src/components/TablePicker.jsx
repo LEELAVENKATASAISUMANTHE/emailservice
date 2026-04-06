@@ -261,7 +261,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
             <>
               <div className="section-label" style={{ marginTop: '16px', marginBottom: '12px' }}>Parsed Upload Result</div>
               <div style={{ marginBottom: '12px', fontSize: '0.85rem' }}>
-                Total: {parsedData.total ?? 0} | Valid: {parsedData.validCount ?? 0} | Invalid: {parsedData.invalidCount ?? 0}
+                Total: {parsedData.total ?? 0} | Valid: {parsedData.validCount ?? 0} | Invalid: {parsedData.invalidCount ?? 0} | Inserted: {parsedData.insertedCount ?? 0}
               </div>
 
               {parsedData?.invalidRows?.length > 0 && (

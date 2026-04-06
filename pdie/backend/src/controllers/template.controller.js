@@ -1,4 +1,5 @@
 import { TemplateModel } from '../models/Template.js';
+import { StudentModel } from '../models/Student.js';
 import { getObjectStream } from '../db/minio.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { ensureTemplate } from '../services/template.service.js';
@@ -15,8 +16,11 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function validateRow(row) {
   const errors = [];
 
-  if (!String(row['students.name'] || '').trim()) {
-    errors.push('Name is required');
+  if (
+    !String(row['students.first_name'] || '').trim() &&
+    !String(row['students.full_name'] || '').trim()
+  ) {
+    errors.push('Name is required (first_name or full_name)');
   }
 
   if (!String(row['students.email'] || '').trim()) {
@@ -29,6 +33,21 @@ function validateRow(row) {
   }
 
   return errors;
+}
+
+function mapToStudent(row) {
+  const firstName = String(row['students.first_name'] || '').trim() || null;
+  const middleName = String(row['students.middle_name'] || '').trim() || null;
+  const lastName = String(row['students.last_name'] || '').trim() || null;
+  const derivedFullName = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
+
+  return {
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+    full_name: String(row['students.full_name'] || '').trim() || derivedFullName || null,
+    email: String(row['students.email'] || '').trim().toLowerCase()
+  };
 }
 
 export const generateTemplate = async (req, res) => {
@@ -72,6 +91,7 @@ export const uploadTemplateWorkbook = async (req, res) => {
   const parsed = await parseWorkbookRows(req.file.buffer);
   const validRows = [];
   const invalidRows = [];
+  let insertedCount = 0;
 
   parsed.rows.forEach((row, index) => {
     const errors = validateRow(row);
@@ -88,12 +108,30 @@ export const uploadTemplateWorkbook = async (req, res) => {
     validRows.push(row);
   });
 
+  if (validRows.length) {
+    const students = validRows.map(mapToStudent);
+
+    try {
+      const inserted = await StudentModel.insertMany(students, {
+        ordered: false
+      });
+      insertedCount = inserted.length;
+    } catch (error) {
+      if (Array.isArray(error?.insertedDocs)) {
+        insertedCount = error.insertedDocs.length;
+      } else {
+        throw new HttpError(500, 'Failed to save valid students');
+      }
+    }
+  }
+
   res.json({
-    message: 'Validation completed',
+    message: 'Validation + Save completed',
     headers: parsed.headers,
     total: parsed.rows.length,
     validCount: validRows.length,
     invalidCount: invalidRows.length,
+    insertedCount,
     validRows,
     invalidRows
   });
