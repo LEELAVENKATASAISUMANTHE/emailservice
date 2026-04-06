@@ -15,7 +15,12 @@ import {
   listTables,
   listTemplateTables
 } from '../controllers/tables.controller.js';
-import { downloadTemplate, generateTemplate, listTemplates } from '../controllers/template.controller.js';
+import {
+  downloadTemplate,
+  generateTemplate,
+  listTemplates,
+  uploadTemplateWorkbook
+} from '../controllers/template.controller.js';
 import { getJobReport, getJobStatus, uploadExcel, uploadMiddleware } from '../controllers/upload.controller.js';
 
 const router = Router();
@@ -33,6 +38,7 @@ router.get('/students/template/full', getFullStudentTemplate);
 router.get('/templates', listTemplates);
 router.post('/templates', generateTemplate);
 router.get('/templates/:templateId/download', downloadTemplate);
+router.post('/templates/upload', uploadMiddleware, uploadTemplateWorkbook);
 router.post('/students/upload', uploadMiddleware, uploadStudents);
 router.post('/uploads', uploadMiddleware, uploadExcel);
 router.get('/jobs/:job_id', getJobStatus);

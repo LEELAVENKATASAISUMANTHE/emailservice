@@ -2,6 +2,7 @@ import { TemplateModel } from '../models/Template.js';
 import { getObjectStream } from '../db/minio.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { ensureTemplate } from '../services/template.service.js';
+import { parseWorkbookRows } from '../utils/excel.js';
 
 export const listTemplates = async (req, res) => {
   const templates = await TemplateModel.find({}).sort({ createdAt: -1 });
@@ -41,4 +42,18 @@ export const downloadTemplate = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+export const uploadTemplateWorkbook = async (req, res) => {
+  if (!req.file?.buffer) {
+    throw new HttpError(400, 'Excel file is required');
+  }
+
+  const parsed = await parseWorkbookRows(req.file.buffer);
+
+  res.json({
+    message: 'File parsed successfully',
+    headers: parsed.headers,
+    rows: parsed.rows
+  });
 };
