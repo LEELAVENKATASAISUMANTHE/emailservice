@@ -126,13 +126,12 @@ export const uploadTemplateWorkbook = async (req, res) => {
   }
 
   res.json({
-    message: 'Validation + Save completed',
-    headers: parsed.headers,
+    message: 'Upload processed',
     total: parsed.rows.length,
     validCount: validRows.length,
     invalidCount: invalidRows.length,
     insertedCount,
-    validRows,
+    failedToInsert: validRows.length - insertedCount,
     invalidRows
   });
 };

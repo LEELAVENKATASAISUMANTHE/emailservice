@@ -259,9 +259,22 @@ export default function TablePicker({ template, onTemplateCreated }) {
 
           {parsedData && (
             <>
-              <div className="section-label" style={{ marginTop: '16px', marginBottom: '12px' }}>Parsed Upload Result</div>
-              <div style={{ marginBottom: '12px', fontSize: '0.85rem' }}>
-                Total: {parsedData.total ?? 0} | Valid: {parsedData.validCount ?? 0} | Invalid: {parsedData.invalidCount ?? 0} | Inserted: {parsedData.insertedCount ?? 0}
+              <div className="section-label" style={{ marginTop: '16px', marginBottom: '12px' }}>Upload Summary</div>
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'rgba(148, 163, 184, 0.12)',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.7
+                }}
+              >
+                <div>Total: {parsedData.total ?? 0}</div>
+                <div>Valid: {parsedData.validCount ?? 0}</div>
+                <div>Invalid: {parsedData.invalidCount ?? 0}</div>
+                <div style={{ color: '#166534', fontWeight: 600 }}>Inserted: {parsedData.insertedCount ?? 0}</div>
+                <div style={{ color: '#b45309', fontWeight: 600 }}>Failed to Insert: {parsedData.failedToInsert ?? 0}</div>
               </div>
 
               {parsedData?.invalidRows?.length > 0 && (
@@ -285,6 +298,7 @@ export default function TablePicker({ template, onTemplateCreated }) {
                 </>
               )}
 
+              <div className="section-label" style={{ marginBottom: '12px' }}>Raw Response</div>
               <pre
                 style={{
                   margin: 0,
