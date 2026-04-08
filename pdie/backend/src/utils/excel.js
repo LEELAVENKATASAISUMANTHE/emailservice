@@ -117,3 +117,48 @@ export const streamRows = async (buffer, onChunk, chunkSize = 500) => {
 
   return { totalRows };
 };
+
+export const parseWorkbookRows = async (buffer) => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  const sheet = workbook.getWorksheet('data') || workbook.worksheets[0];
+  if (!sheet) {
+    throw new Error('Workbook does not contain any worksheets');
+  }
+
+  const headers = sheet.getRow(1).values
+    .slice(1)
+    .map((value) => String(normalizeCellValue(value) || '').trim());
+
+  const rows = [];
+
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const rowData = {};
+    let hasValue = false;
+
+    headers.forEach((header, index) => {
+      if (!header) {
+        return;
+      }
+
+      const cellValue = normalizeCellValue(row.getCell(index + 1).value);
+      rowData[header] = cellValue;
+      if (String(cellValue ?? '').trim() !== '') {
+        hasValue = true;
+      }
+    });
+
+    if (!hasValue) {
+      continue;
+    }
+
+    rows.push(rowData);
+  }
+
+  return {
+    headers: headers.filter(Boolean),
+    rows
+  };
+};

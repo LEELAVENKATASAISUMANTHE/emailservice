@@ -49,6 +49,7 @@ services:
       NODE_ENV: production
       PORT: 4000
       CORS_ORIGINS: http://localhost:5173,http://localhost:5300,http://134.209.159.132:5300
+      FRONTEND_URL: http://134.209.159.132:5300
       PG_CONNECTION_STRING: postgresql://admin:sumanth123@172.17.0.1:5432/placement
       MONGO_URI: mongodb://mongo:27017/pdie
       MINIO_ENDPOINT: minio
@@ -56,6 +57,8 @@ services:
       MINIO_USE_SSL: 'false'
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+      EMAIL_USER: change-me@example.com
+      EMAIL_PASS: change-me-app-password
       REDPANDA_BROKERS: redpanda:9092
       REDPANDA_TOPIC: pdie.ingest
       STARTUP_RETRY_ATTEMPTS: 30

@@ -28,7 +28,8 @@ export const config = {
       .map((origin) => origin.trim())
       .filter(Boolean),
     debugEnabled: optionalBoolean(process.env.PDIE_DEBUG_ENABLED, false),
-    debugToken: process.env.PDIE_DEBUG_TOKEN || ''
+    debugToken: process.env.PDIE_DEBUG_TOKEN || '',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5300'
   },
   postgres: {
     connectionString: required(process.env.PG_CONNECTION_STRING, 'PG_CONNECTION_STRING'),
@@ -52,5 +53,9 @@ export const config = {
       .map((broker) => broker.trim())
       .filter(Boolean),
     topic: process.env.REDPANDA_TOPIC || 'pdie.ingest'
+  },
+  email: {
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || ''
   }
 };
