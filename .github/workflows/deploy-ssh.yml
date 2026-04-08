@@ -63,10 +63,7 @@ jobs:
               --exclude "frontend/node_modules/" \
               --exclude "email-consumer/node_modules/" \
               --exclude "excel-service/" \
-              --exclude "pdie/node_modules/" \
-              --exclude "pdie/**/node_modules/" \
-              --exclude "pdie/frontend/dist/" \
-              --exclude "pdie/.env" \
+              --exclude "pdie/" \
               --exclude "frontend/.next/" \
               -e "ssh -p ${DEPLOY_PORT}" \
               ./ "${{ secrets.DEPLOY_SSH_USER }}@${host}:${DEPLOY_PATH}/"
@@ -78,8 +75,6 @@ jobs:
 
               echo '🧹 Stopping old containers...'
               docker compose down --remove-orphans || true
-              BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL=http://134.209.159.132:5400 \
-                docker compose -f pdie/docker-compose.yml down --remove-orphans || true
               docker rm -f emailservice-excel-backend emailservice-excel-worker emailservice-email-consumer >/dev/null 2>&1 || true
 
               echo '🧱 Rebuilding everything fresh...'
@@ -89,11 +84,6 @@ jobs:
 
               docker compose up -d --build --force-recreate \
                 backend frontend email-consumer metabase minio
-              BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL=http://134.209.159.132:5400 \
-                docker compose -f pdie/docker-compose.yml up -d --build --force-recreate
-
-              echo '🌐 Testing PDIE backend health endpoint...'
-              curl -sf http://localhost:5400/health || echo 'PDIE backend not responding yet'
 
               echo '✅ Deployment completed on ${host}'
             "
