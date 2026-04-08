@@ -16,7 +16,7 @@ test2
   3. save the workbook locally
   4. upload it to /api/excel/upload
 t
-
+   nkbjhavshfhuvuhfgvu
   That will validate the full path: auth, template generation, metadata round-
   trip, queueing, worker processing, persistence, and MinIO error handling.
 
