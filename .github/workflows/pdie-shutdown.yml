@@ -71,33 +71,42 @@ jobs:
               docker ps -a --filter 'name=pdie' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
 
               echo ''
-              echo '=== Stopping PDIE via docker compose ==='
+              echo '=== Step 1: Stop via docker compose (graceful) ==='
               if [ -f \"\$PDIE_COMPOSE\" ]; then
                 if [ \"$REMOVE_VOLUMES\" = 'yes' ]; then
                   BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL='' \
                     docker compose -f \"\$PDIE_COMPOSE\" down --remove-orphans --volumes || true
-                  echo 'Stopped containers and removed volumes.'
                 else
                   BACKEND_HOST_PORT=5400 FRONTEND_HOST_PORT=5300 VITE_API_BASE_URL='' \
                     docker compose -f \"\$PDIE_COMPOSE\" down --remove-orphans || true
-                  echo 'Stopped containers. Data volumes preserved.'
                 fi
+                echo 'docker compose down completed.'
               else
-                echo 'pdie/docker-compose.yml not found at expected path — skipping compose down.'
+                echo 'pdie/docker-compose.yml not found — skipping compose down.'
               fi
 
               echo ''
-              echo '=== Force-removing any remaining PDIE containers ==='
+              echo '=== Step 2: Force-kill known PDIE containers by name ==='
+              for CNAME in pdie-frontend pdie-backend pdie-worker pdie-mongo pdie-minio pdie-redpanda; do
+                if docker inspect \"\$CNAME\" >/dev/null 2>&1; then
+                  docker rm -f \"\$CNAME\" && echo \"Removed: \$CNAME\" || echo \"Failed to remove: \$CNAME\"
+                else
+                  echo \"Not found (already gone): \$CNAME\"
+                fi
+              done
+
+              echo ''
+              echo '=== Step 3: Force-kill any remaining containers matching name=pdie ==='
               PDIE_CONTAINERS=\$(docker ps -aq --filter 'name=pdie' 2>/dev/null || true)
               if [ -n \"\$PDIE_CONTAINERS\" ]; then
-                docker rm -f \$PDIE_CONTAINERS
-                echo 'Removed leftover PDIE containers.'
+                echo \"\$PDIE_CONTAINERS\" | xargs docker rm -f
+                echo 'Removed remaining PDIE containers.'
               else
                 echo 'No remaining PDIE containers found.'
               fi
 
               echo ''
-              echo '=== Removing PDIE Docker images ==='
+              echo '=== Step 4: Remove PDIE Docker images ==='
               PDIE_IMAGES=\$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -i 'pdie' || true)
               if [ -n \"\$PDIE_IMAGES\" ]; then
                 echo \"\$PDIE_IMAGES\" | xargs docker rmi -f || true
@@ -107,7 +116,7 @@ jobs:
               fi
 
               echo ''
-              echo '=== Removing PDIE Docker networks ==='
+              echo '=== Step 5: Remove PDIE Docker networks ==='
               PDIE_NETWORKS=\$(docker network ls --format '{{.Name}}' | grep -i 'pdie' || true)
               if [ -n \"\$PDIE_NETWORKS\" ]; then
                 echo \"\$PDIE_NETWORKS\" | xargs docker network rm || true
@@ -118,7 +127,7 @@ jobs:
 
               if [ \"$REMOVE_VOLUMES\" = 'yes' ]; then
                 echo ''
-                echo '=== Removing PDIE Docker volumes ==='
+                echo '=== Step 6: Remove PDIE Docker volumes ==='
                 PDIE_VOLUMES=\$(docker volume ls --format '{{.Name}}' | grep -i 'pdie' || true)
                 if [ -n \"\$PDIE_VOLUMES\" ]; then
                   echo \"\$PDIE_VOLUMES\" | xargs docker volume rm -f || true
@@ -126,14 +135,18 @@ jobs:
                 else
                   echo 'No PDIE volumes found.'
                 fi
+              else
+                echo ''
+                echo '=== Step 6: Skipped volume removal (remove_volumes = no) ==='
               fi
 
               echo ''
-              echo '=== Final check — confirming no PDIE containers remain ==='
+              echo '=== Final verification ==='
               REMAINING=\$(docker ps -a --filter 'name=pdie' --format '{{.Names}}' || true)
               if [ -n \"\$REMAINING\" ]; then
-                echo 'WARNING: Some PDIE containers still present:'
+                echo 'WARNING: The following PDIE containers are still present:'
                 echo \"\$REMAINING\"
+                exit 1
               else
                 echo 'All PDIE containers successfully removed.'
               fi
