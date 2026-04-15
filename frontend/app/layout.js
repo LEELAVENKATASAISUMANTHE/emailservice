@@ -1,6 +1,7 @@
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import NavLinks from "./NavLinks";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -30,17 +31,7 @@ export default function RootLayout({ children }) {
             </svg>
             Notification Console
           </Link>
-          <div className="navbar-links">
-            <Link href="/admin/notifications" className="navbar-link">
-              Admin
-            </Link>
-            <Link href="/student/dashboard" className="navbar-link">
-              Student
-            </Link>
-            <Link href="/admin/importer" className="navbar-link">
-              DB Importer
-            </Link>
-          </div>
+          <NavLinks />
         </nav>
         {children}
       </body>
