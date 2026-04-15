@@ -5,77 +5,49 @@ services:
       dockerfile: Dockerfile
     container_name: emailservice-backend
     restart: unless-stopped
-    depends_on:
-      - minio
-
     environment:
       PORT: 4000
-
-      # Mongo
+      NODE_ENV: production
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://emailservice-frontend:3000}
+      # MongoDB
       MONGO_URI: mongodb://mongodb:27017
-      MONGO_DB_NAME: placement_erp
-
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-placement_erp}
+      MONGO_IMPORTER_DB: ${MONGO_IMPORTER_DB:-db_importer}
+      # PostgreSQL (importer)
+      DATABASE_URL: ${DB_IMPORTER_DATABASE_URL:-}
       # Redis
       REDIS_URL: redis://redis:6379
-
       # Kafka
-      KAFKA_CLIENT_ID: placement-approval-service
-      KAFKA_BROKERS: redpanda:9092
-      KAFKA_CONSUMER_GROUP: placement-approval-group
-      KAFKA_PENDING_TOPIC: job.notification.pending
-      KAFKA_SEND_TOPIC: job.notification.send
-
-      # MinIO
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: email-bodies
-
+      KAFKA_CLIENT_ID: ${KAFKA_CLIENT_ID:-placement-erp-backend}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-redpanda:9092}
+      KAFKA_PENDING_TOPIC: ${KAFKA_PENDING_TOPIC:-job.notification.pending}
+      KAFKA_SEND_TOPIC: ${KAFKA_SEND_TOPIC:-job.notification.send}
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-placement-approval-group}
+      KAFKA_EMAIL_CONSUMER_GROUP: ${KAFKA_EMAIL_CONSUMER_GROUP:-placement-email-consumer-group}
+      # Email consumer
+      EMAIL_CONSUMER_ENABLED: ${EMAIL_CONSUMER_ENABLED:-true}
+      ZEPTOMAIL_API_URL: ${ZEPTOMAIL_API_URL:-https://api.zeptomail.in/v1.1/email}
+      ZEPTOMAIL_TOKEN: ${ZEPTOMAIL_TOKEN}
+      FROM_EMAIL: ${FROM_EMAIL}
+      FROM_NAME: ${FROM_NAME:-Placement Cell}
+      # Object storage
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-placement-erp-assets}
+      OBJECT_STORAGE_USE_SSL: ${OBJECT_STORAGE_USE_SSL:-true}
+      OBJECT_STORAGE_AUTO_CREATE_BUCKET: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-false}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     ports:
       - "${BACKEND_HOST_PORT:-4400}:4000"
-
     networks:
       - erp-core-net
       - redis-core-network
-
-  excel-backend:
-    build:
-      context: ./excel-service
-      dockerfile: Dockerfile
-    container_name: emailservice-excel-backend
-    restart: unless-stopped
-    depends_on:
-      - minio
-    environment:
-      PORT: 4001
-      MONGO_URI: mongodb://mongodb:27017
-      MONGO_DB_NAME: placement_erp
-      KAFKA_CLIENT_ID: excel-service
-      KAFKA_BROKERS: redpanda:9092
-      KAFKA_CONSUMER_GROUP: excel-service-group
-      EXCEL_PROCESS_TOPIC: excel.job.process
-      EXCEL_RESULT_TOPIC: excel.job.result
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: email-bodies
-      EXCEL_ADMIN_API_KEY: ${EXCEL_ADMIN_API_KEY:-change-me}
-      EXCEL_MAX_UPLOAD_BYTES: ${EXCEL_MAX_UPLOAD_BYTES:-5242880}
-      EXCEL_MAX_ROWS: ${EXCEL_MAX_ROWS:-5000}
-      EXCEL_MAX_ATTEMPTS: ${EXCEL_MAX_ATTEMPTS:-3}
-      EXCEL_JOB_RETENTION_DAYS: ${EXCEL_JOB_RETENTION_DAYS:-7}
-      EXCEL_CLEANUP_INTERVAL_MS: ${EXCEL_CLEANUP_INTERVAL_MS:-3600000}
-      EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP: ${EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP:-false}
-      EXCEL_UPLOAD_RATE_WINDOW_MS: ${EXCEL_UPLOAD_RATE_WINDOW_MS:-60000}
-      EXCEL_UPLOAD_RATE_MAX: ${EXCEL_UPLOAD_RATE_MAX:-2}
-      EXCEL_FAILED_PREVIEW_LIMIT: ${EXCEL_FAILED_PREVIEW_LIMIT:-5}
-      EXCEL_UPLOAD_DIR: /app/src/excel/uploads
-    ports:
-      - "${EXCEL_BACKEND_HOST_PORT:-4500}:4001"
-    volumes:
-      - excel-upload-data:/app/src/excel/uploads
-    networks:
-      - erp-core-net
 
   frontend:
     build:
@@ -83,43 +55,18 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://134.209.159.132:4400}
+        DB_IMPORTER_URL: ${DB_IMPORTER_URL:-http://emailservice-backend:4000}
     container_name: emailservice-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://134.209.159.132:4400}
+      DB_IMPORTER_URL: ${DB_IMPORTER_URL:-http://emailservice-backend:4000}
       PORT: 3000
     ports:
       - "${FRONTEND_HOST_PORT:-3300}:3000"
-    networks:
-      - erp-core-net
-      - redis-core-network
-
-  email-consumer:
-    build:
-      context: ./email-consumer
-      dockerfile: Dockerfile
-    container_name: emailservice-email-consumer
-    restart: unless-stopped
-    depends_on:
-      - minio
-    environment:
-      KAFKA_CLIENT_ID: email-consumer
-      KAFKA_BROKERS: redpanda:9092
-      KAFKA_CONSUMER_GROUP: email-consumer-group
-      KAFKA_SEND_TOPIC: job.notification.send
-
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: email-bodies
-
-      ZEPTOMAIL_API_URL: https://api.zeptomail.in/v1.1/email
-      ZEPTOMAIL_TOKEN: Zoho-enczapikey PHtE6r0LF+nsj2Yv+0ACt/K/EMb3NYoprOgyKAlOtYhEC6BRHU0BqNoixDCy+kgoA6FCEPHJyI0+s7+V57qAJ2ruZmZLXGqyqK3sx/VYSPOZsbq6x00at1weckXYVo7td9Jp0yTTstmX
-      FROM_EMAIL: "noreply@sumantheluri.tech"
-      FROM_NAME: Placement Cell
-
     networks:
       - erp-core-net
       - redis-core-network
@@ -130,11 +77,11 @@ services:
     restart: unless-stopped
     environment:
       MB_DB_TYPE: postgres
-      MB_DB_DBNAME: metabase
-      MB_DB_PORT: 5432
-      MB_DB_USER: admin
-      MB_DB_PASS: sumanth123
-      MB_DB_HOST: 172.17.0.1
+      MB_DB_DBNAME: ${METABASE_DB_NAME:-metabase}
+      MB_DB_PORT: ${METABASE_DB_PORT:-5432}
+      MB_DB_USER: ${METABASE_DB_USER:-admin}
+      MB_DB_PASS: ${METABASE_DB_PASS}
+      MB_DB_HOST: ${METABASE_DB_HOST:-172.17.0.1}
     ports:
       - "8765:3000"
     volumes:
@@ -142,30 +89,8 @@ services:
     networks:
       - erp-core-net
 
-  minio:
-    image: minio/minio:latest
-    container_name: emailservice-minio
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-    networks:
-      - erp-core-net
-      - redis-core-network
-
-
 volumes:
-  excel-upload-data:
-  minio-data:
   metabase-data:
-
-
 
 networks:
   erp-core-net:

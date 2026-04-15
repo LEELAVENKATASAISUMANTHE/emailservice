@@ -11,4 +11,4 @@ backend/uploads/
 frontend/.next/
 dist/
 coverage/
-postman_collection.json 
+postman_collection.json

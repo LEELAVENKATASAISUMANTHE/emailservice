@@ -1,0 +1,16 @@
+# Local development overrides — NOT committed to git
+# Exposes ports so you can hit the services directly without a reverse proxy.
+# docker compose up  (automatically merges this file)
+
+services:
+  backend:
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+
+  frontend:
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development

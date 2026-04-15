@@ -83,7 +83,7 @@ jobs:
               docker builder prune -af >/dev/null 2>&1 || true
 
               docker compose up -d --build --force-recreate \
-                backend frontend email-consumer metabase minio
+                backend frontend metabase
 
               echo '✅ Deployment completed on ${host}'
             "

@@ -1,23 +1,26 @@
 {
-  "name": "placement-erp-notification-backend",
-  "version": "1.0.0",
+  "name": "placement-erp-backend",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Admin approval notification service",
-  "main": "main.js",
+  "description": "Unified backend: notification approval service + PostgreSQL DB importer",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node main.js",
-    "dev": "nodemon main.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.3.1",
     "kafkajs": "^2.2.4",
-    "minio": "^8.0.6",
-    "mongoose": "^8.9.5",
-    "multer": "^1.4.5-lts.1",
+    "minio": "^8.0.7",
+    "mongodb": "^7.1.1",
+    "multer": "^2.1.1",
+    "pg": "^8.12.0",
     "redis": "^4.7.0",
-    "zod": "^3.24.1"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

@@ -37,6 +37,9 @@ export default function RootLayout({ children }) {
             <Link href="/student/dashboard" className="navbar-link">
               Student
             </Link>
+            <Link href="/admin/importer" className="navbar-link">
+              DB Importer
+            </Link>
           </div>
         </nav>
         {children}

@@ -495,7 +495,7 @@ export default function NotificationDetailPage() {
                             )}
                             {notification.adminMessageTextFile && (
                                 <div style={{ marginTop: 10 }}>
-                                    <span className="info-label">Email Body (MinIO)</span>
+                                    <span className="info-label">Email Body (Object Storage)</span>
                                     <p className="mono" style={{ margin: "6px 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
                                         {notification.adminMessageTextFile}
                                     </p>

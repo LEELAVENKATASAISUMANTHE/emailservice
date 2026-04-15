@@ -1,229 +1,147 @@
-# Placement ERP Notification Approval System
+# Placement ERP — Email Notification Service
 
-This repository now contains:
+Two deployed containers:
 
-- `backend/` -> Node.js + Express + KafkaJS + MongoDB + Redis + MinIO
-- `frontend/` -> Next.js admin/student UI
+- `backend/` — unified Node.js/Express API: notification approval, DB importer, email worker
+- `frontend/` — Next.js admin/student UI
 
-## 1) Backend setup
+External dependencies (not deployed by this compose file): MongoDB, Redis, Kafka/Redpanda, PostgreSQL, object storage (Cloudflare R2 or MinIO), Metabase.
+
+---
+
+## Backend
+
+**Start locally:**
 
 ```bash
 cd backend
-copy .env.example .env
+cp .env.example .env
+# fill in .env
 npm install
 npm run dev
 ```
 
-### Backend environment
+**Key env vars:**
 
-`backend/.env`
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PORT` | `4000` | HTTP listen port |
+| `NODE_ENV` | `development` | |
+| `ALLOWED_ORIGINS` | *(dev: localhost)* | Comma-separated CORS origins (production) |
+| `MONGO_URI` | `mongodb://mongodb:27017` | MongoDB connection |
+| `MONGO_DB_NAME` | `placement_erp` | Notifications database |
+| `MONGO_IMPORTER_DB` | `db_importer` | Import logs + temp passwords |
+| `DATABASE_URL` | *(optional)* | PostgreSQL — enables importer features |
+| `REDIS_URL` | `redis://redis:6379` | |
+| `KAFKA_BROKERS` | `redpanda:9092` | Comma-separated |
+| `KAFKA_PENDING_TOPIC` | `job.notification.pending` | Inbound notifications |
+| `KAFKA_SEND_TOPIC` | `job.notification.send` | Outbound email jobs |
+| `EMAIL_CONSUMER_ENABLED` | `true` | Set `false` to disable email dispatch |
+| `ZEPTOMAIL_TOKEN` | *(required for email)* | ZeptoMail API key |
+| `FROM_EMAIL` | *(required for email)* | Sender address |
+| `OBJECT_STORAGE_ENDPOINT` | | R2/MinIO endpoint |
+| `OBJECT_STORAGE_ACCESS_KEY` | | |
+| `OBJECT_STORAGE_SECRET_KEY` | | |
+| `OBJECT_STORAGE_BUCKET` | `placement-erp-assets` | |
 
-- `PORT=4000`
-- `MONGO_URI=mongodb://localhost:27017`
-- `MONGO_DB_NAME=placement_erp`
-- `REDIS_URL=redis://127.0.0.1:6379`
-- `KAFKA_CLIENT_ID=placement-approval-service`
-- `KAFKA_BROKERS=127.0.0.1:9092`
-- `KAFKA_CONSUMER_GROUP=placement-approval-group`
-- `KAFKA_PENDING_TOPIC=job.notification.pending`
-- `KAFKA_SEND_TOPIC=job.notification.send`
-- `MINIO_ENDPOINT=http://localhost:9000`
-- `MINIO_ACCESS_KEY=minioadmin`
-- `MINIO_SECRET_KEY=minioadmin`
-- `MINIO_BUCKET=email-bodies`
+---
 
-## 2) Frontend setup
+## API Endpoints
+
+### Health
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Liveness check |
+
+### Notifications
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/notifications` | List all notifications (summary) |
+| `GET` | `/api/notifications/:jobId` | Get full notification detail |
+| `POST` | `/api/notifications/:jobId/approve` | Approve + queue emails (`multipart/form-data`: `emailBody`, `adminMessage`, `attachments[]`) |
+| `POST` | `/api/notifications/:jobId/reject` | Reject (`{ adminMessage }`) |
+| `POST` | `/api/notifications/:jobId/sent` | Mark as sent |
+
+### Student
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/student/dashboard?studentId=` | Active job list for a student |
+
+### DB Importer *(requires `DATABASE_URL`)*
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/tables` | List importable PostgreSQL tables |
+| `GET` | `/api/schema/:table` | RSI field definitions for a table |
+| `GET` | `/api/template/:table` | Download CSV template |
+| `GET` | `/api/import-history` | Last 50 import runs (PostgreSQL) |
+| `POST` | `/api/import/:table` | Bulk import rows (`multipart/form-data`: `file`, `rows` JSON, `filename`) |
+| `GET` | `/api/import/:importId/log` | Row-level import log (MongoDB) |
+| `GET` | `/api/import/:importId/passwords` | Temp passwords for one import (24 h TTL) |
+| `GET` | `/api/import/passwords` | All non-expired temp passwords |
+| `GET` | `/api/mongo/status` | MongoDB connection status |
+
+---
+
+## Frontend
+
+**Start locally:**
 
 ```bash
 cd frontend
-copy .env.example .env.local
+cp .env.example .env.local
+# set VITE_API_URL and DB_IMPORTER_URL
 npm install
 npm run dev
 ```
 
-Frontend env:
+Pages:
+- `/` — Home
+- `/admin/notifications` — Notification list
+- `/admin/notifications/:jobId` — Approve / reject detail
+- `/admin/importer` — DB spreadsheet importer
+- `/student/dashboard` — Student job lookup
 
-- `NEXT_PUBLIC_API_BASE=http://localhost:4000`
+---
 
-## 3) API endpoints
+## Docker Compose
 
-- `GET /health`
-- `GET /api/admin/notifications`
-- `GET /api/admin/notifications/:jobId`
-- `POST /api/admin/notifications/:jobId/approve` (`multipart/form-data`)
-- `POST /api/admin/notifications/:jobId/reject` (`application/json`)
-- `GET /api/student/dashboard?studentId=1BY23CS132`
-- `GET /api/files/:objectName` (serve attachments/admin-message `.txt` from MinIO)
+```bash
+# copy and fill in secrets
+cp backend/.env.example backend/.env
 
-## 4) UI pages
+docker compose up -d --build
+```
 
-- `/admin/notifications`
-- `/admin/notifications/[jobId]`
-- `/student/dashboard`
+The compose file deploys `backend`, `frontend`, and `metabase`.
 
-## 5) Core behavior implemented
+External networks required: `erp-core-net`, `redis-core-network`.
 
-- Consumes from `job.notification.pending`
-- Validates payload using `zod`
-- Persists pending records to MongoDB (`PENDING_APPROVAL`)
-- Commits Kafka offset only after successful DB write for valid messages
-- Approve flow:
-  - transition `PENDING_APPROVAL -> APPROVED -> SENT`
-  - uploads attachments to MinIO
-  - stores admin message body as `.txt` in MinIO
-  - stores per-student visibility in Redis sorted set:
-    - key: `student:{studentId}:jobs`
-    - member: `jobId`
-    - score: `applicationDeadline` unix timestamp (seconds)
-  - publishes to `job.notification.send`
-- Reject flow:
-  - transition to `REJECTED`
-  - stores admin message body as `.txt` in MinIO
-  - no Redis write, no Kafka send publish
-- Student dashboard:
-  - removes expired jobs with `ZREMRANGEBYSCORE`
-  - reads active jobs with `ZRANGEBYSCORE now +inf`
+Required env vars for compose (set in shell or a root `.env`):
 
-## 6) Backend folder flow (beginner-friendly)
+```
+ZEPTOMAIL_TOKEN=
+FROM_EMAIL=
+OBJECT_STORAGE_ENDPOINT=
+OBJECT_STORAGE_ACCESS_KEY=
+OBJECT_STORAGE_SECRET_KEY=
+METABASE_DB_PASS=
+# optional overrides:
+ALLOWED_ORIGINS=http://your-domain
+VITE_API_URL=http://your-server-ip:4400
+DB_IMPORTER_URL=http://emailservice-backend:4000
+```
 
-- `routes/` -> URL mapping only
-- `controllers/` -> request/response handling
-- `services/` -> business logic
-- `db/` -> Mongo model + repository queries
-- `utils/` -> Redis, Kafka, MinIO clients/helpers
+---
 
-## 7) GitHub Actions SSH deploy
+## CI/CD
 
-Workflow file: `.github/workflows/deploy-ssh.yml`
+GitHub Actions (`deploy-ssh.yml`) deploys on push to `main`:
 
-It deploys on push to `main`/`master` (or manual trigger), then:
-- connects to one or more servers over SSH
-- syncs repo files to the server
-- runs `docker compose up -d --build` in the deploy path
+**Required secrets:**
+- `DEPLOY_SSH_PRIVATE_KEY` — ed25519 private key
+- `DEPLOY_SERVER_HOSTS` — comma-separated hostnames/IPs
+- `DEPLOY_SSH_USER` — remote user
 
-Required GitHub **Secrets**:
-- `DEPLOY_SSH_PRIVATE_KEY` -> private key for server login
-- `DEPLOY_SSH_USER` -> SSH user (for example `ubuntu`)
-- `DEPLOY_SERVER_HOSTS` -> comma-separated hosts/IPs (for example `10.0.0.11,10.0.0.12`)
-
-Optional GitHub **Variables**:
-- `DEPLOY_SSH_PORT` -> default `22`
-- `DEPLOY_PATH` -> default `/opt/emailservice`
-
-## 8) Excel ingestion platform
-
-The backend now includes a separate Excel ingestion subsystem under `backend/excel/`.
-
-### Excel features implemented
-
-- predefined template download for `student`, `placement`, and `other`
-- dynamic template builder based on a central field registry
-- hidden workbook metadata sheet (`__template_meta`) for self-describing uploads
-- strict parser validation against template metadata
-- background processing with Redpanda (Kafka)
-- in-process Kafka consumer inside the Excel service
-- Mongo-backed job tracking with progress, retries, failed preview, and retention
-- uploadType-specific validation rules
-- duplicate detection inside Excel and at the persistence layer
-- multi-table mapping using `table.field` keys
-- multi-table persistence handlers with row-level Mongo transactions where needed
-- MinIO-backed error workbook generation and download
-- admin-protected upload/template APIs
-- owner-based job access
-- rate limiting and idempotent upload detection
-- scheduled cleanup for expired jobs and related artifacts
-
-### Excel API endpoints
-
-- `GET /api/excel/template?type=student|placement|other`
-- `GET /api/excel/template/registry`
-- `POST /api/excel/template/custom`
-- `POST /api/excel/upload` (`multipart/form-data`)
-- `GET /api/excel/jobs/:jobId`
-- `GET /api/excel/jobs/:jobId/error-file`
-
-### Excel auth headers
-
-- `x-admin-api-key` -> required for template generation and upload
-- `x-user-id` -> required for upload ownership and job access checks
-
-### Excel-related collections
-
-- `ExcelJob` -> job status, progress, retry metadata, failed preview, retention, ownership
-- `ImportedStudent` -> imported student records
-- `ImportedClass` -> imported class records
-- `ImportedPlacement` -> imported placement records
-- `ImportedOtherRecord` -> imported generic records for `other` uploads
-
-### Dynamic template system
-
-- field registry defines tables, fields, labels, and required rules
-- templates are generated from the registry instead of hardcoded column lists
-- custom templates can combine fields from multiple tables into one sheet
-- uploaded files are validated against the hidden metadata sheet, not trusted by visible headers alone
-- unknown or extra columns are rejected
-
-### Upload and processing flow
-
-1. Admin downloads a preset template or generates a custom template.
-2. The workbook includes hidden metadata for `uploadType` and selected fields.
-3. Admin uploads the filled `.xlsx` file to `/api/excel/upload`.
-4. Backend computes a SHA-256 file hash and reuses an existing active job for duplicate uploads from the same user and upload type.
-5. The Excel service publishes a message to `excel.job.process` and consumes it asynchronously.
-6. The parser validates template metadata, headers, and row structure.
-7. The worker validates rows, maps them into domain-specific objects, persists them through upload-type handlers, and records partial failures.
-8. Invalid rows are written into an error workbook and uploaded to MinIO.
-9. Job status, progress, failed preview, retry info, and error download link are available from `/api/excel/jobs/:jobId`.
-
-### Validation and protection
-
-- required field validation
-- email format validation
-- uploadType-specific rules
-- duplicate detection inside the uploaded workbook
-- DB-level duplicate protection through collection indexes and upsert paths
-- file size limit
-- MIME and extension validation
-- empty file rejection
-- max row count limit
-- per-user upload rate limiting
-
-### Multi-table mapping and persistence
-
-- Excel columns use `table.field` keys internally
-- parsed rows are transformed into structured domain objects before persistence
-- mappers live in `backend/excel/mappers/`
-- persistence handlers live in `backend/excel/persistence/`
-- `student` uploads persist class + student records transactionally per row
-- `placement` uploads persist student + placement records transactionally per row
-- `other` uploads persist raw structured payload rows
-
-### Job tracking and error reporting
-
-- job metadata is stored in `ExcelJob`
-- tracks `status`, `progress`, `successCount`, `failedCount`, `attemptsMade`, `maxAttempts`, `createdBy`, and `errorFileUrl`
-- failed row preview is stored for frontend use
-- full invalid-row details are exported as an Excel error workbook
-- error workbooks are stored in MinIO and served through the API
-
-### Cleanup and operations
-
-- backend container accepts uploads and enqueues jobs
-- `excel-worker` processes jobs from Redis asynchronously
-- generated error workbooks are stored in MinIO, not local disk
-- expired Excel jobs are cleaned up on a schedule
-- imported domain rows can also be deleted during cleanup if enabled by env
-
-### Excel environment variables
-
-- `EXCEL_ADMIN_API_KEY`
-- `EXCEL_QUEUE_NAME`
-- `EXCEL_UPLOAD_DIR`
-- `EXCEL_MAX_UPLOAD_BYTES`
-- `EXCEL_MAX_ROWS`
-- `EXCEL_UPLOAD_RATE_WINDOW_MS`
-- `EXCEL_UPLOAD_RATE_MAX`
-- `EXCEL_FAILED_PREVIEW_LIMIT`
-- `EXCEL_JOB_RETENTION_DAYS`
-- `EXCEL_CLEANUP_INTERVAL_MS`
-- `EXCEL_DELETE_IMPORTED_DATA_ON_CLEANUP`
+**Required vars (optional):**
+- `DEPLOY_SSH_PORT` (default `22`)
+- `DEPLOY_PATH` (default `/opt/emailservice`)
