@@ -1,0 +1,13 @@
+# DB_IMPORTER_URL is the server-side (Next.js) proxy target — always internal.
+# VITE_API_URL is baked into the image at build time (Docker build arg).
+# Update DB_IMPORTER_URL if the backend service name/port ever changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: erp
+data:
+  DB_IMPORTER_URL: "http://backend.erp.svc.cluster.local:4000"
+  PORT: "3000"
+  NODE_ENV: "production"
+  NEXT_TELEMETRY_DISABLED: "1"

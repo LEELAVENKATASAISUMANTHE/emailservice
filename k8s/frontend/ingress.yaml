@@ -1,0 +1,26 @@
+# Exposes the frontend at https://${FRONTEND_DOMAIN}
+# Replace host with your actual domain.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: erp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - ${FRONTEND_DOMAIN}          # ← replace
+      secretName: frontend-tls
+  rules:
+    - host: ${FRONTEND_DOMAIN}        # ← replace
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

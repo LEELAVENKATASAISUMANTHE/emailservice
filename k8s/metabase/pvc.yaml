@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: metabase-data
+  namespace: erp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path      # K3s default storage class
+  resources:
+    requests:
+      storage: 2Gi
