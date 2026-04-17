@@ -49,6 +49,12 @@ async function start() {
     console.warn('[startup] DATABASE_URL not set — PostgreSQL/importer features disabled');
   }
 
+  // ── HTTP server ──────────────────────────────────────────────────────────
+  // Start before Kafka consumers so readiness probes pass during warm-up.
+  app.listen(PORT, () => {
+    console.log(`[server] listening on 0.0.0.0:${PORT}`);
+  });
+
   // ── Kafka consumers ──────────────────────────────────────────────────────
   await startNotificationConsumer().catch((err) =>
     console.error('[startup] notification consumer failed:', err.message)
@@ -57,11 +63,6 @@ async function start() {
   await startEmailConsumer().catch((err) =>
     console.error('[startup] email consumer failed:', err.message)
   );
-
-  // ── HTTP server ──────────────────────────────────────────────────────────
-  app.listen(PORT, () => {
-    console.log(`[server] listening on http://localhost:${PORT}`);
-  });
 }
 
 async function shutdown() {
