@@ -87,6 +87,8 @@ jobs:
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          # k3s kubeconfigs default to 127.0.0.1; replace with the public IP
+          sed -i "s|127.0.0.1|${{ secrets.K3S_HOST }}|g" ~/.kube/config
           chmod 600 ~/.kube/config
 
       - name: Ensure namespace exists
