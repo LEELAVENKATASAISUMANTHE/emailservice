@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: backend-config
-  namespace: erp
+  namespace: rest
 data:
   PORT: "4000"
   NODE_ENV: "production"
@@ -20,7 +20,7 @@ data:
   REDIS_URL: "redis://redis.infra.svc.cluster.local:6379"
 
   # Kafka / Redpanda (infra namespace)
-  KAFKA_CLIENT_ID: "placement-erp-backend"
+  KAFKA_CLIENT_ID: "placement-rest-backend"
   KAFKA_BROKERS: "redpanda.infra.svc.cluster.local:9092"
   KAFKA_PENDING_TOPIC: "job.notification.pending"
   KAFKA_SEND_TOPIC: "job.notification.send"
@@ -35,4 +35,4 @@ data:
   # Object storage (Cloudflare R2)
   OBJECT_STORAGE_USE_SSL: "true"
   OBJECT_STORAGE_AUTO_CREATE_BUCKET: "false"
-  OBJECT_STORAGE_BUCKET: "placement-erp-assets"
+  OBJECT_STORAGE_BUCKET: "placement-rest-assets"

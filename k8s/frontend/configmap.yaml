@@ -5,9 +5,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: frontend-config
-  namespace: erp
+  namespace: rest
 data:
-  DB_IMPORTER_URL: "http://backend.erp.svc.cluster.local:4000"
+  DB_IMPORTER_URL: "http://backend.rest.svc.cluster.local:4000"
   PORT: "3000"
   NODE_ENV: "production"
   NEXT_TELEMETRY_DISABLED: "1"

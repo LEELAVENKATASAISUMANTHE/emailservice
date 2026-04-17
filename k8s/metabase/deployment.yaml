@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: metabase
-  namespace: erp
+  namespace: rest
   labels:
     app: metabase
 spec:

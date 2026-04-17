@@ -63,7 +63,7 @@ jobs:
           push: true
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL }}
-            DB_IMPORTER_URL=http://backend.erp.svc.cluster.local:4000
+            DB_IMPORTER_URL=http://backend.rest.svc.cluster.local:4000
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
             ${{ env.FRONTEND_IMAGE }}:latest
@@ -104,14 +104,14 @@ jobs:
             --from-literal=OBJECT_STORAGE_ENDPOINT="${{ secrets.OBJECT_STORAGE_ENDPOINT }}" \
             --from-literal=OBJECT_STORAGE_ACCESS_KEY="${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}" \
             --from-literal=OBJECT_STORAGE_SECRET_KEY="${{ secrets.OBJECT_STORAGE_SECRET_KEY }}" \
-            --namespace erp \
+            --namespace rest \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create / update metabase-secret
         run: |
           kubectl create secret generic metabase-secret \
             --from-literal=MB_DB_PASS="${{ secrets.METABASE_DB_PASS }}" \
-            --namespace erp \
+            --namespace rest \
             --dry-run=client -o yaml | kubectl apply -f -
 
       # ── Templated manifests (domain names injected via envsubst) ─────────────
@@ -146,11 +146,11 @@ jobs:
         env:
           SHA_TAG: ${{ needs.build-and-push.outputs.sha_tag }}
         run: |
-          kubectl set image deployment/backend  backend=${BACKEND_IMAGE}:${SHA_TAG}  -n erp
-          kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${SHA_TAG} -n erp
+          kubectl set image deployment/backend  backend=${BACKEND_IMAGE}:${SHA_TAG}  -n rest
+          kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${SHA_TAG} -n rest
 
-          kubectl rollout status deployment/backend  -n erp --timeout=120s
-          kubectl rollout status deployment/frontend -n erp --timeout=120s
+          kubectl rollout status deployment/backend  -n rest --timeout=120s
+          kubectl rollout status deployment/frontend -n rest --timeout=120s
 
           echo "Deployment complete"
-          kubectl get pods -n erp
+          kubectl get pods -n rest

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: metabase-data
-  namespace: erp
+  namespace: rest
 spec:
   accessModes:
     - ReadWriteOnce

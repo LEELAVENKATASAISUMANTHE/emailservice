@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: erp
+  namespace: rest
   labels:
     app: backend
 spec:
