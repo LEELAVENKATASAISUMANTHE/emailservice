@@ -25,6 +25,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx1g"
             - name: MB_DB_TYPE
               value: "postgres"
             - name: MB_DB_HOST
@@ -60,7 +62,7 @@ spec:
               memory: "512Mi"
             limits:
               cpu: "1000m"
-              memory: "1Gi"
+              memory: "1536Mi"
           volumeMounts:
             - name: metabase-data
               mountPath: /metabase-data
