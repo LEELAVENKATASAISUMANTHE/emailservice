@@ -62,7 +62,7 @@ jobs:
           context: ./frontend
           push: true
           build-args: |
-            VITE_API_URL=${{ vars.VITE_API_URL }}
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
             DB_IMPORTER_URL=http://backend.erp.svc.cluster.local:4000
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
@@ -117,11 +117,11 @@ jobs:
       # ── Templated manifests (domain names injected via envsubst) ─────────────
       - name: Apply templated manifests
         env:
-          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
-          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
-          BACKEND_DOMAIN: ${{ vars.BACKEND_DOMAIN }}
-          FRONTEND_DOMAIN: ${{ vars.FRONTEND_DOMAIN }}
-          METABASE_DOMAIN: ${{ vars.METABASE_DOMAIN }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          BACKEND_DOMAIN: ${{ secrets.BACKEND_DOMAIN }}
+          FRONTEND_DOMAIN: ${{ secrets.FRONTEND_DOMAIN }}
+          METABASE_DOMAIN: ${{ secrets.METABASE_DOMAIN }}
         run: |
           envsubst < k8s/01-cluster-issuer.yaml       | kubectl apply -f -
           envsubst < k8s/backend/configmap.yaml        | kubectl apply -f -
