@@ -1,7 +1,6 @@
-"use client";
-
 import { ChakraProvider } from '@chakra-ui/react';
 import Importer from './Importer';
+import './importer.css';
 
 export default function ImporterPage() {
   return (

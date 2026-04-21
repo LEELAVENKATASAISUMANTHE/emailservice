@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from 'react-router-dom';
 
 export default function HomePage() {
   return (
@@ -51,10 +51,10 @@ export default function HomePage() {
           Navigate to the admin panel to review pending notifications or check the student dashboard.
         </p>
         <div className="row">
-          <Link className="btn btn-primary" href="/admin/notifications">
+          <Link className="btn btn-primary" to="/admin/notifications">
             Admin Notifications
           </Link>
-          <Link className="btn btn-ghost" href="/student/dashboard">
+          <Link className="btn btn-ghost" to="/student/dashboard">
             Student Dashboard
           </Link>
         </div>

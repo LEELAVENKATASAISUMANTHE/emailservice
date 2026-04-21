@@ -1,22 +1,18 @@
-"use client";
+import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-const API_BASE = process.env.VITE_API_URL || "http://localhost:4000";
-
-export default function AdminNotificationsPage() {
+export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   async function load() {
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/notifications`, {
-        cache: "no-store"
-      });
+      const response = await fetch(`${API_BASE}/api/notifications`);
       if (!response.ok) throw new Error(`Request failed with ${response.status}`);
       const data = await response.json();
       setRows(Array.isArray(data) ? data : data.data || []);
@@ -31,10 +27,10 @@ export default function AdminNotificationsPage() {
 
   const counts = {
     total: rows.length,
-    pending: rows.filter(r => r.status === "PENDING_APPROVAL").length,
-    approved: rows.filter(r => r.status === "APPROVED").length,
-    rejected: rows.filter(r => r.status === "REJECTED").length,
-    sent: rows.filter(r => r.status === "SENT").length,
+    pending: rows.filter(r => r.status === 'PENDING_APPROVAL').length,
+    approved: rows.filter(r => r.status === 'APPROVED').length,
+    rejected: rows.filter(r => r.status === 'REJECTED').length,
+    sent: rows.filter(r => r.status === 'SENT').length,
   };
 
   return (
@@ -64,17 +60,17 @@ export default function AdminNotificationsPage() {
       </div>
 
       <section className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ marginBottom: 0 }}>All Notifications</h2>
           <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? 'Loading...' : '↻ Refresh'}
           </button>
         </div>
 
         {error && <p className="notice error">{error}</p>}
 
         {loading && !error && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
             {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 48 }} />)}
           </div>
         )}
@@ -105,12 +101,12 @@ export default function AdminNotificationsPage() {
                     <td>{row.eligibleCount}</td>
                     <td>
                       <span className={`pill ${row.status}`}>
-                        {row.status?.replace("_", " ")}
+                        {row.status?.replace('_', ' ')}
                       </span>
                     </td>
                     <td>{new Date(row.applicationDeadline).toLocaleDateString()}</td>
                     <td>
-                      <Link href={`/admin/notifications/${row.jobId}`} className="btn btn-ghost btn-sm">
+                      <Link to={`/admin/notifications/${row.jobId}`} className="btn btn-ghost btn-sm">
                         Open →
                       </Link>
                     </td>

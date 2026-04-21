@@ -16,6 +16,8 @@
   --radius: 14px;
   --shadow: 0 6px 26px rgba(8, 29, 59, 0.07);
   --shadow-lg: 0 12px 40px rgba(8, 29, 59, 0.12);
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 * {
@@ -25,7 +27,7 @@
 body {
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
   background:
     radial-gradient(1200px circle at top right, #d8e9f8 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);

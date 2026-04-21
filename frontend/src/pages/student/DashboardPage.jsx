@@ -1,28 +1,25 @@
-"use client";
+import { useState } from 'react';
 
-import { useState } from "react";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-const API_BASE = process.env.VITE_API_URL || "http://localhost:4000";
-
-export default function StudentDashboardPage() {
-  const [studentId, setStudentId] = useState("");
+export default function DashboardPage() {
+  const [studentId, setStudentId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [result, setResult] = useState(null);
 
   async function loadDashboard() {
     if (!studentId.trim()) {
-      setError("Student ID is required.");
+      setError('Student ID is required.');
       return;
     }
 
     setLoading(true);
-    setError("");
+    setError('');
 
     try {
       const response = await fetch(
-        `${API_BASE}/api/student/dashboard?studentId=${encodeURIComponent(studentId.trim())}`,
-        { cache: "no-store" }
+        `${API_BASE}/api/student/dashboard?studentId=${encodeURIComponent(studentId.trim())}`
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
@@ -36,7 +33,7 @@ export default function StudentDashboardPage() {
   }
 
   function handleKeyDown(e) {
-    if (e.key === "Enter") loadDashboard();
+    if (e.key === 'Enter') loadDashboard();
   }
 
   return (
@@ -58,7 +55,7 @@ export default function StudentDashboardPage() {
             style={{ flex: 1, minWidth: 240 }}
           />
           <button className="btn btn-primary" onClick={loadDashboard} disabled={loading}>
-            {loading ? "Loading..." : "Search"}
+            {loading ? 'Loading...' : 'Search'}
           </button>
         </div>
 
@@ -80,7 +77,7 @@ export default function StudentDashboardPage() {
 
           <section className="card">
             <h3>
-              Jobs for <span className="mono" style={{ color: "var(--brand)" }}>{result.studentId}</span>
+              Jobs for <span className="mono" style={{ color: 'var(--brand)' }}>{result.studentId}</span>
             </h3>
 
             <div className="table-wrap">
@@ -106,7 +103,7 @@ export default function StudentDashboardPage() {
                       <td style={{ fontWeight: 600 }}>{job.companyName}</td>
                       <td>{job.eligibleCount}</td>
                       <td>
-                        <span className={`pill ${job.status}`}>{job.status?.replace("_", " ")}</span>
+                        <span className={`pill ${job.status}`}>{job.status?.replace('_', ' ')}</span>
                       </td>
                       <td>{new Date(job.applicationDeadline).toLocaleDateString()}</td>
                     </tr>

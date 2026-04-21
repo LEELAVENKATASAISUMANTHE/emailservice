@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -10,14 +10,15 @@ COPY . .
 ARG VITE_API_URL=http://134.209.159.132:4400
 ENV VITE_API_URL=$VITE_API_URL
 
-ARG DB_IMPORTER_URL=http://db-importer-backend:3001
-ENV DB_IMPORTER_URL=$DB_IMPORTER_URL
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
 RUN npm run build
 
-EXPOSE 3000
+FROM nginx:alpine
 
-CMD ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+ENV DB_IMPORTER_URL=http://db-importer-backend:3001
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
