@@ -417,7 +417,7 @@ export default function Importer() {
     setLogOpen(false);
 
     try {
-      const rowsToImport = (all && all.length > 0) ? all : validData;
+      const rowsToImport = (all && all.length > 0) ? all : [...(validData || []), ...(invalidData || [])];
       const formData = new FormData();
       if (file) formData.append('file', file);
       formData.append('rows', JSON.stringify(rowsToImport));

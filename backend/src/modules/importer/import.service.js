@@ -41,6 +41,25 @@ export async function bulkImport(pool, tableName, rows, filename = null) {
   let inserted = 0;
   let duplicates = 0;
 
+  function formatRowError(err) {
+    let errorMsg = err.message;
+
+    if (err.code === '23503') {
+      const match = err.detail?.match(/Key \((.+)\)=\((.+)\) is not present/);
+      if (match) {
+        errorMsg = `Foreign key violation: ${match[1]} "${match[2]}" does not exist`;
+      } else {
+        errorMsg = 'Foreign key violation: referenced record does not exist';
+      }
+    }
+
+    if (err.code === '23505') {
+      errorMsg = 'Duplicate entry: this record already exists';
+    }
+
+    return errorMsg;
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -71,7 +90,7 @@ export async function bulkImport(pool, tableName, rows, filename = null) {
         }
       } catch (err) {
         await client.query('ROLLBACK TO SAVEPOINT sp');
-        errors.push({ rowIndex: i + 1, rowData: row, error: err.message });
+        errors.push({ rowIndex: i + 1, rowData: row, error: formatRowError(err) });
       }
     }
 

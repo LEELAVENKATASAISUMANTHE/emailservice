@@ -168,22 +168,12 @@ export async function buildRsiFields(pool, tableName) {
     let fieldType;
     if (foreignKeys[column_name]) {
       const { refTable, refColumn } = foreignKeys[column_name];
-      try {
-        const { rows: countRows } = await pool.query(
-          `SELECT COUNT(*) FROM "${refTable}"`
-        );
-        const count = parseInt(countRows[0].count, 10);
-        if (count <= 100) {
-          const options = await fetchSelectOptions(pool, refTable, refColumn);
-          fieldType = { type: 'select', options };
-        } else {
-          // Large reference table — use plain input, let DB enforce FK integrity
-          fieldType = { type: 'input' };
-        }
-      } catch {
-        // If count query fails for any reason, fall back to input
-        fieldType = { type: 'input' };
-      }
+      fieldType = { type: 'input' };
+      validations.push({
+        rule: 'regex',
+        value: '^.+$',
+        errorMessage: `Must be a valid ${refTable} ${refColumn}`,
+      });
     } else if (data_type === 'boolean') {
       fieldType = { type: 'checkbox' };
     } else {
