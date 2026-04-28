@@ -24,7 +24,7 @@ export async function createImportLog({ importId, table, filename, storageKey, t
       status: 'in_progress',
       startedAt: new Date(),
       completedAt: null,
-      summary: { total: totalRows, inserted: 0, failed: 0 },
+      summary: { total: totalRows, inserted: 0, failed: 0, duplicates: 0 },
       rows: [],
     });
   } catch (err) {
@@ -32,7 +32,7 @@ export async function createImportLog({ importId, table, filename, storageKey, t
   }
 }
 
-export async function finalizeImportLog(importId, { inserted, failed, rows }) {
+export async function finalizeImportLog(importId, { inserted, failed, duplicates = 0, rows }) {
   try {
     await importLogs().updateOne(
       { importId },
@@ -42,6 +42,7 @@ export async function finalizeImportLog(importId, { inserted, failed, rows }) {
           completedAt: new Date(),
           'summary.inserted': inserted,
           'summary.failed': failed,
+          'summary.duplicates': duplicates,
           rows,
         },
       }
@@ -71,7 +72,6 @@ export async function storeTempPassword({ importId, studentId, email, username, 
     expiresAt: new Date(now.getTime() + TEMP_PASSWORD_TTL_MS),
   });
 }
-
 export async function getTempPasswords(importId) {
   try {
     return tempPasswords()

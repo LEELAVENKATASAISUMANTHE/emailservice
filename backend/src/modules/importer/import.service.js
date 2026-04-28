@@ -32,13 +32,14 @@ export async function ensureStudentUserTrigger(pool) {
  * @returns {{ inserted: number, failed: number, errors: Array }}
  */
 export async function bulkImport(pool, tableName, rows, filename = null) {
-  if (!rows || rows.length === 0) return { inserted: 0, failed: 0, errors: [] };
+  if (!rows || rows.length === 0) return { inserted: 0, failed: 0, duplicates: 0, errors: [] };
 
   const columns = Object.keys(rows[0]);
-  if (columns.length === 0) return { inserted: 0, failed: 0, errors: [] };
+  if (columns.length === 0) return { inserted: 0, failed: 0, duplicates: 0, errors: [] };
 
   const errors = [];
   let inserted = 0;
+  let duplicates = 0;
 
   const client = await pool.connect();
   try {
@@ -48,20 +49,26 @@ export async function bulkImport(pool, tableName, rows, filename = null) {
       const row = rows[i];
       const values = columns.map((c) => {
         const v = row[c];
-        return v === '' ? null : v;
+        if (v === '' || v === undefined || v === null || v === 'null') return null;
+        return v;
       });
 
-      const colList    = columns.map((c) => `"${c}"`).join(', ');
+      const colList      = columns.map((c) => `"${c}"`).join(', ');
       const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(', ');
       const sql = `INSERT INTO "${tableName}" (${colList})
                    VALUES (${placeholders})
-                   ON CONFLICT DO NOTHING`;
+                   ON CONFLICT DO NOTHING
+                   RETURNING *`;
 
       try {
         await client.query('SAVEPOINT sp');
-        await client.query(sql, values);
+        const insertRes = await client.query(sql, values);
         await client.query('RELEASE SAVEPOINT sp');
-        inserted++;
+        if (insertRes.rowCount > 0) {
+          inserted++;
+        } else {
+          duplicates++;
+        }
       } catch (err) {
         await client.query('ROLLBACK TO SAVEPOINT sp');
         errors.push({ rowIndex: i + 1, rowData: row, error: err.message });
@@ -77,7 +84,7 @@ export async function bulkImport(pool, tableName, rows, filename = null) {
   }
 
   const failed      = errors.length;
-  const successRows = rows.length - failed;
+  const successRows = inserted;
 
   try {
     await pool.query(
@@ -89,5 +96,5 @@ export async function bulkImport(pool, tableName, rows, filename = null) {
     console.error('[importer] failed to write import_log:', logErr.message);
   }
 
-  return { inserted: successRows, failed, errors };
+  return { inserted, failed, duplicates, errors };
 }

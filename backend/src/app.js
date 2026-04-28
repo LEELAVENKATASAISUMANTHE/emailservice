@@ -9,6 +9,9 @@ import importerRoutes from './modules/importer/importer.routes.js';
 
 const app = express();
 
+// Trust the first proxy hop so the rate limiter sees real client IPs instead of ::1
+app.set('trust proxy', 1);
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const isDev = serverConfig.nodeEnv !== 'production';
 

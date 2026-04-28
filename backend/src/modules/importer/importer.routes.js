@@ -172,17 +172,18 @@ router.post('/import/:table', importLimiter, upload.single('file'), async (req, 
         ? await studentBulkImport(getPool(), rows, filename || null, importId)
         : await bulkImport(getPool(), table, rows, filename || null);
 
-    // Build row-level log for MongoDB
+    // Build row-level log for MongoDB — only store row data for failures
     const errorMap = new Map(result.errors.map((e) => [e.rowIndex - 1, e.error]));
     const rowLogs  = rows.map((row, i) =>
       errorMap.has(i)
         ? { rowIndex: i + 1, data: row, status: 'failed', reason: errorMap.get(i) }
-        : { rowIndex: i + 1, data: row, status: 'inserted' }
+        : { rowIndex: i + 1, status: 'inserted' }
     );
 
     await finalizeImportLog(importId, {
       inserted: result.inserted,
       failed: result.failed,
+      duplicates: result.duplicates || 0,
       rows: rowLogs,
     });
 

@@ -168,8 +168,16 @@ export async function buildRsiFields(pool, tableName) {
     let fieldType;
     if (foreignKeys[column_name]) {
       const { refTable, refColumn } = foreignKeys[column_name];
-      const options = await fetchSelectOptions(pool, refTable, refColumn);
-      fieldType = { type: 'select', options };
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*) FROM "${refTable}"`
+      );
+      const count = parseInt(countRows[0].count, 10);
+      if (count <= 100) {
+        const options = await fetchSelectOptions(pool, refTable, refColumn);
+        fieldType = { type: 'select', options };
+      } else {
+        fieldType = { type: 'input' };
+      }
     } else if (data_type === 'boolean') {
       fieldType = { type: 'checkbox' };
     } else {

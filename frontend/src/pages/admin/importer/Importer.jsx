@@ -409,7 +409,7 @@ export default function Importer() {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  async function handleSubmit({ validData, file }) {
+  async function handleSubmit({ validData, invalidData, all, file }) {
     setIsOpen(false);
     setSubmitting(true);
     setResult(null);
@@ -417,9 +417,10 @@ export default function Importer() {
     setLogOpen(false);
 
     try {
+      const rowsToImport = (all && all.length > 0) ? all : validData;
       const formData = new FormData();
       if (file) formData.append('file', file);
-      formData.append('rows', JSON.stringify(validData));
+      formData.append('rows', JSON.stringify(rowsToImport));
       formData.append('filename', file?.name || '');
 
       const res = await fetch(`/api/import/${selectedTable}`, {
@@ -508,8 +509,12 @@ export default function Importer() {
           result.failed > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'
         }`}>
           <p className={`text-sm font-medium ${result.failed > 0 ? 'text-yellow-800' : 'text-green-800'}`}>
-            {result.failed > 0
-              ? `${result.inserted} imported, ${result.failed} failed`
+            {result.failed > 0 || result.duplicates > 0
+              ? [
+                  `${result.inserted} imported`,
+                  result.duplicates > 0 ? `${result.duplicates} duplicate${result.duplicates !== 1 ? 's' : ''}` : null,
+                  result.failed > 0 ? `${result.failed} failed` : null,
+                ].filter(Boolean).join(', ')
               : `${result.inserted} row${result.inserted !== 1 ? 's' : ''} imported successfully`}
           </p>
           {result.failed > 0 && result.errors?.length > 0 && (

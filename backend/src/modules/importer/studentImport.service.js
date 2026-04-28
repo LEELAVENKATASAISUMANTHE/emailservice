@@ -56,18 +56,22 @@ export async function studentBulkImport(pool, rows, filename = null, importId = 
 
   const errors = [];
   let inserted = 0;
+  let duplicates = 0;
   let usersCreated = 0;
 
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const values = columns.map((c) => {
         const v = row[c];
-        return v === '' ? null : v;
+        if (v === '' || v === undefined || v === null || v === 'null') return null;
+        return v;
       });
 
-      const colList    = columns.map((c) => `"${c}"`).join(', ');
+      const colList      = columns.map((c) => `"${c}"`).join(', ');
       const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(', ');
       const insertStudentSql = `
         INSERT INTO students (${colList})
@@ -77,14 +81,13 @@ export async function studentBulkImport(pool, rows, filename = null, importId = 
       `;
 
       try {
-        await client.query('BEGIN');
+        await client.query('SAVEPOINT sp');
 
         const result = await client.query(insertStudentSql, values);
 
         if (result.rowCount === 0) {
-          // Row already exists (ON CONFLICT); count as success
-          await client.query('COMMIT');
-          inserted++;
+          await client.query('RELEASE SAVEPOINT sp');
+          duplicates++;
           continue;
         }
 
@@ -136,29 +139,33 @@ export async function studentBulkImport(pool, rows, filename = null, importId = 
           }
         }
 
-        await client.query('COMMIT');
+        await client.query('RELEASE SAVEPOINT sp');
         inserted++;
       } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK TO SAVEPOINT sp');
         errors.push({ rowIndex: i + 1, rowData: row, error: err.message });
       }
     }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
 
-  const failed      = errors.length;
-  const successRows = rows.length - failed;
+  const failed = errors.length;
 
   await pool
     .query(
       `INSERT INTO import_logs (table_name, total_rows, success_rows, failed_rows, filename)
        VALUES ($1, $2, $3, $4, $5)`,
-      ['students', rows.length, successRows, failed, filename]
+      ['students', rows.length, inserted, failed, filename]
     )
     .catch((err) =>
       console.error('[importer] failed to write import_log:', err.message)
     );
 
-  return { inserted: successRows, failed, errors, usersCreated };
+  return { inserted, failed, duplicates, errors, usersCreated };
 }
