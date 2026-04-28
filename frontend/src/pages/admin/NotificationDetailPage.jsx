@@ -264,7 +264,7 @@ export default function NotificationDetailPage() {
                     )}
                 </div>
 
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                     <section className="card">
                         <h3>Email Status</h3>
                         <div className="info-grid" style={{ marginBottom: 14 }}>
@@ -301,18 +301,28 @@ export default function NotificationDetailPage() {
                             </div>
                         )}
 
-                        {notification.adminMessageTextFile && (
+                        {!isPending && emailBody && (
                             <div style={{ marginTop: 10 }}>
-                                <span className="info-label">Saved Email Body</span>
-                                <p className="mono" style={{ margin: '6px 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                                    {notification.adminMessageTextFile}
-                                </p>
+                                <span className="info-label">Email Body Sent</span>
+                                <pre style={{
+                                    margin: '6px 0 0',
+                                    fontSize: '0.85rem',
+                                    color: 'var(--ink)',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    background: '#f0f4f8',
+                                    padding: 12,
+                                    borderRadius: 8,
+                                    fontFamily: 'inherit',
+                                }}>
+                                    {emailBody}
+                                </pre>
                             </div>
                         )}
 
-                        {notification.attachments && notification.attachments.length > 0 && (
+                        {!isPending && notification.attachments && notification.attachments.length > 0 && (
                             <div style={{ marginTop: 10 }}>
-                                <span className="info-label">Saved Attachments</span>
+                                <span className="info-label">Attachments Sent</span>
                                 <div className="file-chips" style={{ marginTop: 6 }}>
                                     {notification.attachments.map((path, i) => (
                                         <div key={i} className="file-chip">
@@ -322,201 +332,189 @@ export default function NotificationDetailPage() {
                                 </div>
                             </div>
                         )}
+                    </section>
 
-                        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #edf1f5' }}>
-                            <div className="compose-shell">
-                                <div className="compose-topbar">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                                        <polyline points="22,6 12,13 2,6" />
-                                    </svg>
-                                    Compose Email
+                    {isPending && (
+                        <div className="compose-shell">
+                            <div className="compose-topbar">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                    <polyline points="22,6 12,13 2,6" />
+                                </svg>
+                                Compose Email
+                            </div>
+
+                            <div className="compose-row">
+                                <span className="compose-key">To</span>
+                                <div className="compose-value">
+                                    <span style={{ color: 'var(--brand)', fontWeight: 600 }}>
+                                        {notification.eligibleCount} eligible student{notification.eligibleCount !== 1 ? 's' : ''}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="compose-row">
+                                <span className="compose-key">Subject</span>
+                                <div className="compose-value">
+                                    <span style={{ color: 'var(--ink)' }}>
+                                        Placement Opportunity — {notification.companyName}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="compose-editor-shell">
+                                <div className="compose-toolbar">
+                                    <div className="compose-tool-group">
+                                        <span className="compose-tool compose-tool-bold">B</span>
+                                        <span className="compose-tool compose-tool-italic">I</span>
+                                        <span className="compose-tool compose-tool-underline">U</span>
+                                    </div>
+                                    <div className="compose-tool-divider" />
+                                    <div className="compose-tool-group">
+                                        <span className="compose-tool">H1</span>
+                                        <span className="compose-tool">H2</span>
+                                    </div>
+                                    <div className="compose-tool-divider" />
+                                    <div className="compose-tool-group">
+                                        <span className="compose-tool">• List</span>
+                                        <span className="compose-tool">1. List</span>
+                                    </div>
                                 </div>
 
-                                {!isPending && (
-                                    <div style={{ padding: '12px 16px 0', color: 'var(--muted)', fontSize: '0.9rem' }}>
-                                        This notification is already {notification.status?.replace('_', ' ').toLowerCase()}.
-                                        The body and attachments are shown here for reference.
-                                    </div>
-                                )}
+                                <textarea
+                                    className="textarea compose-body"
+                                    placeholder={`Dear Student,\n\nWe are pleased to inform you that ${notification.companyName} has opened a new placement opportunity.\n\nRole: [Position]\nPackage: [CTC]\nDeadline: ${new Date(notification.applicationDeadline).toLocaleDateString('en-IN')}\n\nPlease apply through the placement portal.\n\nBest regards,\nPlacement Cell`}
+                                    value={emailBody}
+                                    onChange={(e) => setEmailBody(e.target.value)}
+                                    disabled={submitting}
+                                />
+                            </div>
 
-                                <div className="compose-row">
-                                    <span className="compose-key">To</span>
-                                    <div className="compose-value">
-                                        <span style={{ color: 'var(--brand)', fontWeight: 600 }}>
-                                            {notification.eligibleCount} eligible student{notification.eligibleCount !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
-                                </div>
+                            <div className="compose-footer">
+                                <div className="compose-attachments">
+                                    <span className="compose-attach-label">
+                                        📎 Attachments (optional)
+                                    </span>
 
-                                <div className="compose-row">
-                                    <span className="compose-key">Subject</span>
-                                    <div className="compose-value">
-                                        <span style={{ color: 'var(--ink)' }}>
-                                            Placement Opportunity — {notification.companyName}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="compose-editor-shell">
-                                    <div className="compose-toolbar">
-                                        <div className="compose-tool-group">
-                                            <span className="compose-tool compose-tool-bold">B</span>
-                                            <span className="compose-tool compose-tool-italic">I</span>
-                                            <span className="compose-tool compose-tool-underline">U</span>
-                                        </div>
-                                        <div className="compose-tool-divider" />
-                                        <div className="compose-tool-group">
-                                            <span className="compose-tool">H1</span>
-                                            <span className="compose-tool">H2</span>
-                                        </div>
-                                        <div className="compose-tool-divider" />
-                                        <div className="compose-tool-group">
-                                            <span className="compose-tool">• List</span>
-                                            <span className="compose-tool">1. List</span>
+                                    <div
+                                        className={`dropzone ${dragOver ? 'drag-over' : ''}`}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                                        onDragLeave={() => setDragOver(false)}
+                                        onDrop={handleDrop}
+                                    >
+                                        <div className="dropzone-text">
+                                            <strong>Click to upload</strong> or drag and drop
+                                            <br />
+                                            <span style={{ fontSize: '0.78rem' }}>PDF, Excel, Word, Images (max 10MB each)</span>
                                         </div>
                                     </div>
 
-                                    <textarea
-                                        className="textarea compose-body"
-                                        placeholder={`Dear Student,\n\nWe are pleased to inform you that ${notification.companyName} has opened a new placement opportunity.\n\nRole: [Position]\nPackage: [CTC]\nDeadline: ${new Date(notification.applicationDeadline).toLocaleDateString('en-IN')}\n\nPlease apply through the placement portal.\n\nBest regards,\nPlacement Cell`}
-                                        value={emailBody}
-                                        onChange={(e) => setEmailBody(e.target.value)}
-                                        disabled={submitting || !isPending}
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        multiple
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                            addFiles(e.target.files);
+                                            e.target.value = '';
+                                        }}
+                                        accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.png,.jpg,.jpeg,.gif,.zip,.rar"
                                     />
-                                </div>
 
-                                <div className="compose-footer">
-                                    <div className="compose-attachments">
-                                        <span className="compose-attach-label">
-                                            📎 Attachments (optional)
-                                        </span>
-
-                                        <div
-                                            className={`dropzone ${dragOver ? 'drag-over' : ''} ${!isPending ? 'dropzone-disabled' : ''}`}
-                                            onClick={() => isPending && fileInputRef.current?.click()}
-                                            onDragOver={(e) => {
-                                                if (!isPending) return;
-                                                e.preventDefault();
-                                                setDragOver(true);
-                                            }}
-                                            onDragLeave={() => setDragOver(false)}
-                                            onDrop={(e) => {
-                                                if (!isPending) return;
-                                                handleDrop(e);
-                                            }}
-                                        >
-                                            <div className="dropzone-text">
-                                                <strong>{isPending ? 'Click to upload' : 'Uploads disabled'}</strong>
-                                                {!isPending && <><br /><span style={{ fontSize: '0.78rem' }}>This email has already been processed.</span></>}
-                                                {isPending && <><br /><span style={{ fontSize: '0.78rem' }}>PDF, Excel, Word, Images (max 10MB each)</span></>}
-                                            </div>
+                                    {attachments.length > 0 && (
+                                        <div className="file-chips">
+                                            {attachments.map((file, i) => (
+                                                <div key={i} className="file-chip">
+                                                    {fileIcon(file.name)} {file.name}
+                                                    <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+                                                        ({formatSize(file.size)})
+                                                    </span>
+                                                    <button
+                                                        className="file-chip-remove"
+                                                        onClick={() => removeFile(i)}
+                                                        title="Remove"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
                                         </div>
-
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            multiple
-                                            style={{ display: 'none' }}
-                                            onChange={(e) => {
-                                                if (!isPending) return;
-                                                addFiles(e.target.files);
-                                                e.target.value = '';
-                                            }}
-                                            accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.png,.jpg,.jpeg,.gif,.zip,.rar"
-                                        />
-
-                                        {attachments.length > 0 && (
-                                            <div className="file-chips">
-                                                {attachments.map((file, i) => (
-                                                    <div key={i} className="file-chip">
-                                                        {fileIcon(file.name)} {file.name}
-                                                        <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                                                            ({formatSize(file.size)})
-                                                        </span>
-                                                        <button
-                                                            className="file-chip-remove"
-                                                            onClick={() => removeFile(i)}
-                                                            title="Remove"
-                                                            disabled={!isPending}
-                                                        >
-                                                            ✕
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
+                            </div>
 
-                                <div style={{ padding: '0 16px 14px' }}>
-                                    <label className="label">Admin Note (optional)</label>
+                            <div style={{ padding: '0 16px 14px' }}>
+                                <label className="label">Admin Note (optional)</label>
+                                <textarea
+                                    className="textarea"
+                                    style={{ minHeight: 60 }}
+                                    placeholder="Add an internal note about this approval..."
+                                    value={adminMessage}
+                                    onChange={(e) => setAdminMessage(e.target.value)}
+                                    disabled={submitting}
+                                />
+                            </div>
+
+                            <div style={{
+                                padding: '14px 16px',
+                                borderTop: '1px solid #edf1f5',
+                                background: '#fbfcfe',
+                                display: 'flex',
+                                gap: 10,
+                                flexWrap: 'wrap'
+                            }}>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleApprove}
+                                    disabled={submitting}
+                                >
+                                    {submitting ? 'Sending...' : '✅ Approve & Send Emails'}
+                                </button>
+                                <button
+                                    className="btn btn-danger"
+                                    onClick={() => setShowRejectForm(!showRejectForm)}
+                                    disabled={submitting}
+                                >
+                                    ❌ Reject
+                                </button>
+                            </div>
+
+                            {showRejectForm && (
+                                <div style={{ padding: '0 16px 16px' }}>
+                                    <label className="label">Rejection Reason</label>
                                     <textarea
                                         className="textarea"
                                         style={{ minHeight: 60 }}
-                                        placeholder="Add an internal note about this approval..."
-                                        value={adminMessage}
-                                        onChange={(e) => setAdminMessage(e.target.value)}
-                                        disabled={submitting || !isPending}
+                                        placeholder="Explain why this notification is being rejected..."
+                                        value={rejectMessage}
+                                        onChange={(e) => setRejectMessage(e.target.value)}
+                                        disabled={submitting}
                                     />
-                                </div>
-
-                                <div style={{
-                                    padding: '14px 16px',
-                                    borderTop: '1px solid #edf1f5',
-                                    background: '#fbfcfe',
-                                    display: 'flex',
-                                    gap: 10,
-                                    flexWrap: 'wrap'
-                                }}>
-                                    <button
-                                        className="btn btn-primary"
-                                        onClick={handleApprove}
-                                        disabled={submitting || !isPending}
-                                    >
-                                        {submitting ? 'Sending...' : '✅ Approve & Send Emails'}
-                                    </button>
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={() => setShowRejectForm(!showRejectForm)}
-                                        disabled={submitting || !isPending}
-                                    >
-                                        ❌ Reject
-                                    </button>
-                                </div>
-
-                                {showRejectForm && (
-                                    <div style={{ padding: '0 16px 16px' }}>
-                                        <label className="label">Rejection Reason</label>
-                                        <textarea
-                                            className="textarea"
-                                            style={{ minHeight: 60 }}
-                                            placeholder="Explain why this notification is being rejected..."
-                                            value={rejectMessage}
-                                            onChange={(e) => setRejectMessage(e.target.value)}
-                                            disabled={submitting || !isPending}
-                                        />
-                                        <div style={{ marginTop: 10 }}>
-                                            <button
-                                                className="btn btn-danger btn-sm"
-                                                onClick={handleReject}
-                                                disabled={submitting || !isPending}
-                                            >
-                                                {submitting ? 'Rejecting...' : 'Confirm Rejection'}
-                                            </button>
-                                        </div>
+                                    <div style={{ marginTop: 10 }}>
+                                        <button
+                                            className="btn btn-danger btn-sm"
+                                            onClick={handleReject}
+                                            disabled={submitting}
+                                        >
+                                            {submitting ? 'Rejecting...' : 'Confirm Rejection'}
+                                        </button>
                                     </div>
-                                )}
+                                </div>
+                            )}
 
-                                {result && (
-                                    <div style={{ padding: '0 16px 16px' }}>
-                                        <div className={`notice ${result.type}`}>{result.message}</div>
-                                    </div>
-                                )}
-                            </div>
+                            {result && (
+                                <div style={{ padding: '0 16px 16px' }}>
+                                    <div className={`notice ${result.type}`}>{result.message}</div>
+                                </div>
+                            )}
                         </div>
-                    </section>
+                    )}
+
+                    {!isPending && result && (
+                        <div className={`notice ${result.type}`}>{result.message}</div>
+                    )}
                 </div>
             </div>
         </main>
