@@ -16,6 +16,7 @@ export default function NotificationDetailPage() {
     const [result, setResult] = useState(null);
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef(null);
+    const textareaRef = useRef(null);
 
     const [rejectMessage, setRejectMessage] = useState('');
     const [showRejectForm, setShowRejectForm] = useState(false);
@@ -139,6 +140,35 @@ export default function NotificationDetailPage() {
         if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) return '🖼️';
         if (['zip', 'rar', '7z'].includes(ext)) return '📦';
         return '📎';
+    }
+
+    function applyFormat(type) {
+        const el = textareaRef.current;
+        if (!el) return;
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const selected = emailBody.substring(start, end);
+
+        let newText, cursorStart, cursorEnd;
+
+        if (type === 'h1' || type === 'h2' || type === 'ul' || type === 'ol') {
+            const prefix = { h1: '# ', h2: '## ', ul: '• ', ol: '1. ' }[type];
+            const lineStart = emailBody.lastIndexOf('\n', start - 1) + 1;
+            newText = emailBody.substring(0, lineStart) + prefix + emailBody.substring(lineStart);
+            cursorStart = start + prefix.length;
+            cursorEnd = end + prefix.length;
+        } else {
+            const [before, after] = { bold: ['**', '**'], italic: ['*', '*'], underline: ['<u>', '</u>'] }[type];
+            newText = emailBody.substring(0, start) + before + selected + after + emailBody.substring(end);
+            cursorStart = start + before.length;
+            cursorEnd = end + before.length + selected.length;
+        }
+
+        setEmailBody(newText);
+        setTimeout(() => {
+            el.focus();
+            el.setSelectionRange(cursorStart, cursorEnd);
+        }, 0);
     }
 
     const isPending = !notification?.status || notification?.status === 'PENDING_APPROVAL';
@@ -366,23 +396,24 @@ export default function NotificationDetailPage() {
                             <div className="compose-editor-shell">
                                 <div className="compose-toolbar">
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool compose-tool-bold">B</span>
-                                        <span className="compose-tool compose-tool-italic">I</span>
-                                        <span className="compose-tool compose-tool-underline">U</span>
+                                        <span className="compose-tool compose-tool-bold" onClick={() => applyFormat('bold')}>B</span>
+                                        <span className="compose-tool compose-tool-italic" onClick={() => applyFormat('italic')}>I</span>
+                                        <span className="compose-tool compose-tool-underline" onClick={() => applyFormat('underline')}>U</span>
                                     </div>
                                     <div className="compose-tool-divider" />
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool">H1</span>
-                                        <span className="compose-tool">H2</span>
+                                        <span className="compose-tool" onClick={() => applyFormat('h1')}>H1</span>
+                                        <span className="compose-tool" onClick={() => applyFormat('h2')}>H2</span>
                                     </div>
                                     <div className="compose-tool-divider" />
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool">• List</span>
-                                        <span className="compose-tool">1. List</span>
+                                        <span className="compose-tool" onClick={() => applyFormat('ul')}>• List</span>
+                                        <span className="compose-tool" onClick={() => applyFormat('ol')}>1. List</span>
                                     </div>
                                 </div>
 
                                 <textarea
+                                    ref={textareaRef}
                                     className="textarea compose-body"
                                     placeholder={`Dear Student,\n\nWe are pleased to inform you that ${notification.companyName} has opened a new placement opportunity.\n\nRole: [Position]\nPackage: [CTC]\nDeadline: ${new Date(notification.applicationDeadline).toLocaleDateString('en-IN')}\n\nPlease apply through the placement portal.\n\nBest regards,\nPlacement Cell`}
                                     value={emailBody}

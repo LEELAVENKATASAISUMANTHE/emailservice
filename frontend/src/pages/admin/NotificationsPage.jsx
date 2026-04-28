@@ -27,7 +27,7 @@ export default function NotificationsPage() {
 
   const counts = {
     total: rows.length,
-    pending: rows.filter(r => r.status === 'PENDING_APPROVAL').length,
+    pending: rows.filter(r => !r.status || r.status === 'PENDING_APPROVAL').length,
     approved: rows.filter(r => r.status === 'APPROVED').length,
     rejected: rows.filter(r => r.status === 'REJECTED').length,
     sent: rows.filter(r => r.status === 'SENT').length,
@@ -100,8 +100,8 @@ export default function NotificationsPage() {
                     <td style={{ fontWeight: 600 }}>{row.companyName}</td>
                     <td>{row.eligibleCount}</td>
                     <td>
-                      <span className={`pill ${row.status}`}>
-                        {row.status?.replace('_', ' ')}
+                      <span className={`pill ${row.status || 'PENDING_APPROVAL'}`}>
+                        {(row.status || 'PENDING_APPROVAL').replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td>{new Date(row.applicationDeadline).toLocaleDateString()}</td>
