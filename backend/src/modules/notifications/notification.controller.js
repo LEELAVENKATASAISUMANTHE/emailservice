@@ -1,5 +1,5 @@
 import * as repo from './notification.repository.js';
-import { saveEmailBody, uploadAttachment } from '../../shared/objectStorage.js';
+import { getTextObject, saveEmailBody, uploadAttachment } from '../../shared/objectStorage.js';
 import { sendMessage } from '../../shared/kafka.js';
 import { addJobForStudents } from '../../db/redis.js';
 import { kafka as kafkaConfig } from '../../config/index.js';
@@ -18,6 +18,22 @@ export async function getNotificationByJobId(req, res, next) {
     const notification = await repo.findNotificationByJobId(Number(req.params.jobId));
     if (!notification) return res.status(404).json({ error: 'Notification not found' });
     res.json(notification);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getNotificationEmailBody(req, res, next) {
+  try {
+    const notification = await repo.findNotificationByJobId(Number(req.params.jobId));
+    if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+    if (!notification.adminMessageTextFile) {
+      return res.status(404).json({ error: 'Email body not found' });
+    }
+
+    const body = await getTextObject(notification.adminMessageTextFile);
+    res.json({ body, path: notification.adminMessageTextFile });
   } catch (err) {
     next(err);
   }

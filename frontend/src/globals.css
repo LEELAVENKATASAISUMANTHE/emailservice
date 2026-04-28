@@ -561,6 +561,16 @@ a {
   background: var(--brand-light);
 }
 
+.dropzone-disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.dropzone-disabled:hover {
+  border-color: var(--border);
+  background: #fafbfd;
+}
+
 .dropzone-text {
   color: var(--muted);
   font-size: 0.88rem;

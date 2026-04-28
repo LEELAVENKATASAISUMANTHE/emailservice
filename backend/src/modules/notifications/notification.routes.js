@@ -3,6 +3,7 @@ import multer from 'multer';
 import {
   getNotificationSummaries,
   getNotificationByJobId,
+  getNotificationEmailBody,
   approveNotification,
   rejectNotification,
   markNotificationAsSent,
@@ -20,6 +21,9 @@ router.get('/', getNotificationSummaries);
 
 // GET  /api/notifications/:jobId
 router.get('/:jobId', getNotificationByJobId);
+
+// GET /api/notifications/:jobId/email-body
+router.get('/:jobId/email-body', getNotificationEmailBody);
 
 // POST /api/notifications/:jobId/approve
 router.post('/:jobId/approve', upload.array('attachments'), approveNotification);
