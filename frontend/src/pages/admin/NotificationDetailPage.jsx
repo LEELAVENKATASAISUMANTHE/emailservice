@@ -141,7 +141,7 @@ export default function NotificationDetailPage() {
         return '📎';
     }
 
-    const isPending = notification?.status === 'PENDING_APPROVAL';
+    const isPending = !notification?.status || notification?.status === 'PENDING_APPROVAL';
 
     if (loading) {
         return (
