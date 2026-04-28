@@ -49,7 +49,7 @@ export async function updatePendingToApproved({
   approvedAt,
 }) {
   return col().findOneAndUpdate(
-    { jobId, status: 'PENDING_APPROVAL' },
+    { jobId, status: { $in: ['PENDING_APPROVAL', null] } },
     {
       $set: {
         status: 'APPROVED',
@@ -69,7 +69,7 @@ export async function updatePendingToRejected({
   rejectedAt,
 }) {
   return col().findOneAndUpdate(
-    { jobId, status: 'PENDING_APPROVAL' },
+    { jobId, status: { $in: ['PENDING_APPROVAL', null] } },
     {
       $set: {
         status: 'REJECTED',
