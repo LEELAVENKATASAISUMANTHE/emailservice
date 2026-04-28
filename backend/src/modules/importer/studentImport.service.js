@@ -40,7 +40,7 @@ export async function studentBulkImport(pool, rows, filename = null, importId = 
     return { inserted: 0, failed: 0, errors: [], usersCreated: 0 };
   }
 
-  const columns = Object.keys(rows[0] || {});
+  const columns = Object.keys(rows[0] || {}).filter((c) => !c.startsWith('__'));
   if (columns.length === 0) {
     return { inserted: 0, failed: 0, errors: [], usersCreated: 0 };
   }

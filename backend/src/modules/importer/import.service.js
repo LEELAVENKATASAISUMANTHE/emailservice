@@ -34,7 +34,7 @@ export async function ensureStudentUserTrigger(pool) {
 export async function bulkImport(pool, tableName, rows, filename = null) {
   if (!rows || rows.length === 0) return { inserted: 0, failed: 0, duplicates: 0, errors: [] };
 
-  const columns = Object.keys(rows[0]);
+  const columns = Object.keys(rows[0]).filter((c) => !c.startsWith('__'));
   if (columns.length === 0) return { inserted: 0, failed: 0, duplicates: 0, errors: [] };
 
   const errors = [];
