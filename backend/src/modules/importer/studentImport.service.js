@@ -86,7 +86,9 @@ export async function studentBulkImport(pool, rows, filename = null, importId = 
       const row = rows[i];
       const values = columns.map((c) => {
         const v = row[c];
-        if (v === '' || v === undefined || v === null || v === 'null') return null;
+        if (v === '' || v === undefined || v === null || v === 'null' || v === 'undefined') {
+          return null;
+        }
         return v;
       });
 
