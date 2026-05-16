@@ -1,6 +1,5 @@
 import { useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { apiGet } from '../../lib/apiClient';
 
 export default function DashboardPage() {
   const [studentId, setStudentId] = useState('');
@@ -18,11 +17,9 @@ export default function DashboardPage() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/student/dashboard?studentId=${encodeURIComponent(studentId.trim())}`
+      const payload = await apiGet(
+        `/api/student/dashboard?studentId=${encodeURIComponent(studentId.trim())}`
       );
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
       setResult(payload);
     } catch (err) {
       setResult(null);
@@ -54,7 +51,7 @@ export default function DashboardPage() {
             onKeyDown={handleKeyDown}
             style={{ flex: 1, minWidth: 240 }}
           />
-          <button className="btn btn-primary" onClick={loadDashboard} disabled={loading}>
+          <button type="button" className="btn btn-primary" onClick={loadDashboard} disabled={loading}>
             {loading ? 'Loading...' : 'Search'}
           </button>
         </div>

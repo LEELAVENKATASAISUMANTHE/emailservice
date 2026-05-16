@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import SectionCard from '../../components/ui/SectionCard';
+import MetaItem from '../../components/ui/MetaItem';
+import { apiGet } from '../../lib/apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+function StatusPill({ status }) {
+  const value = status || 'PENDING_APPROVAL';
+  return <span className={`pill ${value}`}>{value.replace(/_/g, ' ')}</span>;
+}
 
 export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
@@ -12,9 +18,7 @@ export default function NotificationsPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/notifications`);
-      if (!response.ok) throw new Error(`Request failed with ${response.status}`);
-      const data = await response.json();
+      const data = await apiGet('/api/notifications');
       setRows(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
       setError(err.message);
@@ -27,17 +31,21 @@ export default function NotificationsPage() {
 
   const counts = {
     total: rows.length,
-    pending: rows.filter(r => !r.status || r.status === 'PENDING_APPROVAL').length,
-    approved: rows.filter(r => r.status === 'APPROVED').length,
-    rejected: rows.filter(r => r.status === 'REJECTED').length,
-    sent: rows.filter(r => r.status === 'SENT').length,
+    pending: rows.filter((r) => !r.status || r.status === 'PENDING_APPROVAL').length,
+    approved: rows.filter((r) => r.status === 'APPROVED').length,
+    rejected: rows.filter((r) => r.status === 'REJECTED').length,
+    sent: rows.filter((r) => r.status === 'SENT').length,
   };
+
+  const pendingRows = rows.filter((r) => !r.status || r.status === 'PENDING_APPROVAL');
+  const otherRows = rows.filter((r) => r.status && r.status !== 'PENDING_APPROVAL');
+  const orderedRows = [...pendingRows, ...otherRows];
 
   return (
     <main className="shell">
       <section className="hero">
         <h1>Admin Notifications</h1>
-        <p>Review incoming job notifications, approve and send emails.</p>
+        <p>Review incoming job notifications and move each one through approval or rejection.</p>
       </section>
 
       <div className="stats-grid">
@@ -59,11 +67,19 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <section className="card">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ marginBottom: 0 }}>All Notifications</h2>
-          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
-            {loading ? 'Loading...' : '↻ Refresh'}
+      <SectionCard
+        title="All Notifications"
+        subtitle="Pending items are surfaced first so the queue is easier to work through."
+        className="workflow-section"
+      >
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <MetaItem label="Pending" value={counts.pending} />
+            <MetaItem label="Approved" value={counts.approved + counts.sent} />
+            <MetaItem label="Rejected" value={counts.rejected} />
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
@@ -71,7 +87,7 @@ export default function NotificationsPage() {
 
         {loading && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-            {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 48 }} />)}
+            {[1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 48 }} />)}
           </div>
         )}
 
@@ -89,25 +105,23 @@ export default function NotificationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
+                {orderedRows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="muted">No notifications found.</td>
                   </tr>
                 )}
-                {rows.map((row) => (
-                  <tr key={row.jobId}>
+                {orderedRows.map((row) => (
+                  <tr key={row.jobId} style={row.status === 'PENDING_APPROVAL' || !row.status ? { background: '#fcf8ef' } : undefined}>
                     <td className="mono">{row.jobId}</td>
                     <td style={{ fontWeight: 600 }}>{row.companyName}</td>
                     <td>{row.eligibleCount}</td>
                     <td>
-                      <span className={`pill ${row.status || 'PENDING_APPROVAL'}`}>
-                        {(row.status || 'PENDING_APPROVAL').replace(/_/g, ' ')}
-                      </span>
+                      <StatusPill status={row.status} />
                     </td>
                     <td>{new Date(row.applicationDeadline).toLocaleDateString()}</td>
                     <td>
                       <Link to={`/admin/notifications/${row.jobId}`} className="btn btn-ghost btn-sm">
-                        Open →
+                        Open
                       </Link>
                     </td>
                   </tr>
@@ -116,7 +130,7 @@ export default function NotificationsPage() {
             </table>
           </div>
         )}
-      </section>
+      </SectionCard>
     </main>
   );
 }

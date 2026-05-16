@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import SectionCard from '../../components/ui/SectionCard';
+import MetaItem from '../../components/ui/MetaItem';
+import { apiGet, apiPostForm, apiPostJson } from '../../lib/apiClient';
 
 export default function NotificationDetailPage() {
     const { jobId } = useParams();
@@ -25,17 +26,12 @@ export default function NotificationDetailPage() {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(`${API_BASE}/api/notifications/${jobId}`);
-            if (!res.ok) throw new Error(`Failed to load (${res.status})`);
-            const data = await res.json();
+            const data = await apiGet(`/api/notifications/${encodeURIComponent(jobId)}`);
             setNotification(data);
 
             if (data.adminMessageTextFile) {
-                const bodyRes = await fetch(`${API_BASE}/api/notifications/${jobId}/email-body`);
-                if (bodyRes.ok) {
-                    const bodyData = await bodyRes.json();
-                    setEmailBody(bodyData.body || '');
-                }
+                const bodyData = await apiGet(`/api/notifications/${encodeURIComponent(jobId)}/email-body`);
+                setEmailBody(bodyData.body || '');
             } else {
                 setEmailBody('');
             }
@@ -49,14 +45,14 @@ export default function NotificationDetailPage() {
     useEffect(() => { loadNotification(); }, [jobId]);
 
     const addFiles = useCallback((files) => {
-        const newFiles = Array.from(files).filter(f => {
-            return !attachments.some(existing => existing.name === f.name && existing.size === f.size);
-        });
-        setAttachments(prev => [...prev, ...newFiles]);
+        const newFiles = Array.from(files).filter((file) => (
+            !attachments.some((existing) => existing.name === file.name && existing.size === file.size)
+        ));
+        setAttachments((prev) => [...prev, ...newFiles]);
     }, [attachments]);
 
     const removeFile = (index) => {
-        setAttachments(prev => prev.filter((_, i) => i !== index));
+        setAttachments((prev) => prev.filter((_, i) => i !== index));
     };
 
     const handleDrop = (e) => {
@@ -69,7 +65,7 @@ export default function NotificationDetailPage() {
 
     async function handleApprove() {
         if (!emailBody.trim()) {
-            setResult({ type: 'error', message: 'Email body is required' });
+            setResult({ type: 'error', message: 'Email body is required.' });
             return;
         }
 
@@ -80,19 +76,13 @@ export default function NotificationDetailPage() {
             const formData = new FormData();
             formData.append('emailBody', emailBody);
             if (adminMessage.trim()) formData.append('adminMessage', adminMessage);
-            attachments.forEach(file => formData.append('attachments', file));
+            attachments.forEach((file) => formData.append('attachments', file));
 
-            const res = await fetch(`${API_BASE}/api/notifications/${jobId}/approve`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+            const data = await apiPostForm(`/api/notifications/${encodeURIComponent(jobId)}/approve`, formData);
 
             setResult({
                 type: 'ok',
-                message: `✅ Approved! ${data.emailsQueued} email(s) queued, ${data.attachmentsUploaded || 0} attachment(s) uploaded.`
+                message: `Approved. ${data.emailsQueued} email(s) queued, ${data.attachmentsUploaded || 0} attachment(s) uploaded.`,
             });
             loadNotification();
         } catch (err) {
@@ -107,16 +97,11 @@ export default function NotificationDetailPage() {
         setResult(null);
 
         try {
-            const res = await fetch(`${API_BASE}/api/notifications/${jobId}/reject`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminMessage: rejectMessage || null }),
+            await apiPostJson(`/api/notifications/${encodeURIComponent(jobId)}/reject`, {
+                adminMessage: rejectMessage || null,
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-
-            setResult({ type: 'ok', message: '❌ Notification rejected.' });
+            setResult({ type: 'ok', message: 'Notification rejected.' });
             setShowRejectForm(false);
             loadNotification();
         } catch (err) {
@@ -134,12 +119,12 @@ export default function NotificationDetailPage() {
 
     function fileIcon(name) {
         const ext = name.split('.').pop().toLowerCase();
-        if (['pdf'].includes(ext)) return '📄';
-        if (['xlsx', 'xls', 'csv'].includes(ext)) return '📊';
-        if (['doc', 'docx'].includes(ext)) return '📝';
-        if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) return '🖼️';
-        if (['zip', 'rar', '7z'].includes(ext)) return '📦';
-        return '📎';
+        if (ext === 'pdf') return 'PDF';
+        if (['xlsx', 'xls', 'csv'].includes(ext)) return 'XLS';
+        if (['doc', 'docx'].includes(ext)) return 'DOC';
+        if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) return 'IMG';
+        if (['zip', 'rar', '7z'].includes(ext)) return 'ZIP';
+        return 'FILE';
     }
 
     function applyFormat(type) {
@@ -149,10 +134,12 @@ export default function NotificationDetailPage() {
         const end = el.selectionEnd;
         const selected = emailBody.substring(start, end);
 
-        let newText, cursorStart, cursorEnd;
+        let newText;
+        let cursorStart;
+        let cursorEnd;
 
         if (type === 'h1' || type === 'h2' || type === 'ul' || type === 'ol') {
-            const prefix = { h1: '# ', h2: '## ', ul: '• ', ol: '1. ' }[type];
+            const prefix = { h1: '# ', h2: '## ', ul: '- ', ol: '1. ' }[type];
             const lineStart = emailBody.lastIndexOf('\n', start - 1) + 1;
             newText = emailBody.substring(0, lineStart) + prefix + emailBody.substring(lineStart);
             cursorStart = start + prefix.length;
@@ -172,11 +159,18 @@ export default function NotificationDetailPage() {
     }
 
     const isPending = !notification?.status || notification?.status === 'PENDING_APPROVAL';
+    const deadlineText = notification
+        ? new Date(notification.applicationDeadline).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        })
+        : '';
 
     if (loading) {
         return (
             <main className="shell">
-                <div className="back-link">← Back</div>
+                <Link to="/admin/notifications" className="back-link">Back to notifications</Link>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div className="skeleton" style={{ height: 36, width: '60%' }} />
                     <div className="skeleton" style={{ height: 20, width: '40%' }} />
@@ -189,7 +183,7 @@ export default function NotificationDetailPage() {
     if (error) {
         return (
             <main className="shell">
-                <Link to="/admin/notifications" className="back-link">← Back to list</Link>
+                <Link to="/admin/notifications" className="back-link">Back to list</Link>
                 <div className="notice error">{error}</div>
             </main>
         );
@@ -198,7 +192,7 @@ export default function NotificationDetailPage() {
     if (!notification) {
         return (
             <main className="shell">
-                <Link to="/admin/notifications" className="back-link">← Back to list</Link>
+                <Link to="/admin/notifications" className="back-link">Back to list</Link>
                 <div className="notice error">Notification not found.</div>
             </main>
         );
@@ -206,11 +200,11 @@ export default function NotificationDetailPage() {
 
     return (
         <main className="shell">
-            <Link to="/admin/notifications" className="back-link">← Back to notifications</Link>
+            <Link to="/admin/notifications" className="back-link">Back to notifications</Link>
 
             <section className="hero">
                 <div className="row" style={{ alignItems: 'center', gap: 14 }}>
-                    <h1 style={{ marginBottom: 0 }}>Job #{notification.jobId} — {notification.companyName}</h1>
+                    <h1 style={{ marginBottom: 0 }}>Job #{notification.jobId} - {notification.companyName}</h1>
                     <span className={`pill ${notification.status}`}>
                         {notification.status?.replace('_', ' ')}
                     </span>
@@ -218,157 +212,104 @@ export default function NotificationDetailPage() {
                 <p>Created {new Date(notification.createdAt).toLocaleString()}</p>
             </section>
 
-            <div className="split">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    <section className="card">
-                        <h3 style={{ marginBottom: 14 }}>Job Details</h3>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="info-label">Company</span>
-                                <span className="info-value">{notification.companyName}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Eligible Students</span>
-                                <span className="info-value">{notification.eligibleCount}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Deadline</span>
-                                <span className="info-value">
-                                    {new Date(notification.applicationDeadline).toLocaleDateString('en-IN', {
-                                        day: 'numeric', month: 'short', year: 'numeric'
-                                    })}
-                                </span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Status</span>
-                                <span className={`pill ${notification.status}`}>
-                                    {notification.status?.replace('_', ' ')}
-                                </span>
-                            </div>
-                        </div>
-                    </section>
+            {result && (
+                <div className={`notice ${result.type}`} style={{ marginBottom: 18 }}>
+                    {result.message}
+                </div>
+            )}
 
-                    {notification.criteria && (
-                        <section className="card">
-                            <h3 style={{ marginBottom: 10 }}>Eligibility Criteria</h3>
-                            <pre style={{
-                                background: '#f0f4f8',
-                                padding: 14,
-                                borderRadius: 10,
-                                fontSize: '0.85rem',
-                                overflow: 'auto',
-                                margin: 0,
-                                fontFamily: 'var(--font-mono), monospace'
-                            }}>
-                                {JSON.stringify(notification.criteria, null, 2)}
-                            </pre>
-                        </section>
+            <SectionCard
+                title="Decision"
+                subtitle={isPending
+                    ? 'Review the draft, then approve or reject this notification.'
+                    : 'This notification is closed. Review the sent output and audit details below.'}
+                className="workflow-section"
+            >
+                <div className="info-grid" style={{ marginBottom: 16 }}>
+                    <MetaItem label="Status" value={<span className={`pill ${notification.status}`}>{notification.status?.replace('_', ' ')}</span>} />
+                    {notification.approvedAt && (
+                        <MetaItem label="Approved At" value={new Date(notification.approvedAt).toLocaleString()} />
                     )}
-
-                    {notification.eligibleStudents && notification.eligibleStudents.length > 0 && (
-                        <section className="card">
-                            <h3 style={{ marginBottom: 10 }}>
-                                Eligible Students ({notification.eligibleStudents.length})
-                            </h3>
-                            <div className="students-scroll">
-                                <table className="table">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {notification.eligibleStudents.map((s, i) => (
-                                            <tr key={i}>
-                                                <td className="mono" style={{ fontSize: '0.85rem' }}>{s.student_id}</td>
-                                                <td>{s.full_name}</td>
-                                                <td style={{ fontSize: '0.85rem' }}>{s.email}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
+                    {notification.rejectedAt && (
+                        <MetaItem label="Rejected At" value={new Date(notification.rejectedAt).toLocaleString()} />
                     )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    <section className="card">
-                        <h3>Email Status</h3>
-                        <div className="info-grid" style={{ marginBottom: 14 }}>
-                            <div className="info-item">
-                                <span className="info-label">Status</span>
-                                <span className={`pill ${notification.status}`}>
-                                    {notification.status?.replace('_', ' ')}
-                                </span>
-                            </div>
-                            {notification.approvedAt && (
-                                <div className="info-item">
-                                    <span className="info-label">Approved At</span>
-                                    <span className="info-value">
-                                        {new Date(notification.approvedAt).toLocaleString()}
-                                    </span>
-                                </div>
-                            )}
-                            {notification.rejectedAt && (
-                                <div className="info-item">
-                                    <span className="info-label">Rejected At</span>
-                                    <span className="info-value">
-                                        {new Date(notification.rejectedAt).toLocaleString()}
-                                    </span>
-                                </div>
-                            )}
+                {isPending ? (
+                    <>
+                        <div style={{ marginBottom: 14 }}>
+                            <label className="label">Internal note</label>
+                            <textarea
+                                className="textarea"
+                                style={{ minHeight: 70 }}
+                                placeholder="Optional note for internal review..."
+                                value={adminMessage}
+                                onChange={(e) => setAdminMessage(e.target.value)}
+                                disabled={submitting}
+                            />
                         </div>
 
-                        {notification.adminMessage && (
-                            <div style={{ marginTop: 10 }}>
-                                <span className="info-label">Admin Note</span>
-                                <p style={{ margin: '6px 0 0', color: 'var(--ink)' }}>
-                                    {notification.adminMessage}
-                                </p>
+                        {showRejectForm && (
+                            <div style={{ marginBottom: 14 }}>
+                                <label className="label">Rejection reason</label>
+                                <textarea
+                                    className="textarea"
+                                    style={{ minHeight: 70 }}
+                                    placeholder="Explain why this notification is being rejected..."
+                                    value={rejectMessage}
+                                    onChange={(e) => setRejectMessage(e.target.value)}
+                                    disabled={submitting}
+                                />
                             </div>
                         )}
 
-                        {!isPending && emailBody && (
-                            <div style={{ marginTop: 10 }}>
-                                <span className="info-label">Email Body Sent</span>
-                                <pre style={{
-                                    margin: '6px 0 0',
-                                    fontSize: '0.85rem',
-                                    color: 'var(--ink)',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    background: '#f0f4f8',
-                                    padding: 12,
-                                    borderRadius: 8,
-                                    fontFamily: 'inherit',
-                                }}>
-                                    {emailBody}
-                                </pre>
-                            </div>
-                        )}
+                        <div className="compose-actions">
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleApprove}
+                                disabled={submitting}
+                            >
+                                {submitting ? 'Sending...' : 'Approve and send'}
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => setShowRejectForm((v) => !v)}
+                                disabled={submitting}
+                            >
+                                {showRejectForm ? 'Hide rejection' : 'Reject'}
+                            </button>
+                            {showRejectForm && (
+                                <button
+                                    type="button"
+                                    className="btn btn-danger btn-sm"
+                                    onClick={handleReject}
+                                    disabled={submitting}
+                                >
+                                    {submitting ? 'Rejecting...' : 'Confirm rejection'}
+                                </button>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <p className="muted" style={{ margin: 0 }}>
+                        No further action is available for this notification.
+                    </p>
+                )}
+            </SectionCard>
 
-                        {!isPending && notification.attachments && notification.attachments.length > 0 && (
-                            <div style={{ marginTop: 10 }}>
-                                <span className="info-label">Attachments Sent</span>
-                                <div className="file-chips" style={{ marginTop: 6 }}>
-                                    {notification.attachments.map((path, i) => (
-                                        <div key={i} className="file-chip">
-                                            📎 {path.split('/').pop()}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </section>
-
-                    {isPending && (
+            <div className="split">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <SectionCard
+                        title="Email Draft"
+                        subtitle="Compose the message that will be sent to eligible students."
+                        className="workflow-section"
+                    >
                         <div className="compose-shell">
                             <div className="compose-topbar">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                     <polyline points="22,6 12,13 2,6" />
                                 </svg>
@@ -388,7 +329,7 @@ export default function NotificationDetailPage() {
                                 <span className="compose-key">Subject</span>
                                 <div className="compose-value">
                                     <span style={{ color: 'var(--ink)' }}>
-                                        Placement Opportunity — {notification.companyName}
+                                        Placement Opportunity - {notification.companyName}
                                     </span>
                                 </div>
                             </div>
@@ -396,26 +337,26 @@ export default function NotificationDetailPage() {
                             <div className="compose-editor-shell">
                                 <div className="compose-toolbar">
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool compose-tool-bold" onClick={() => applyFormat('bold')}>B</span>
-                                        <span className="compose-tool compose-tool-italic" onClick={() => applyFormat('italic')}>I</span>
-                                        <span className="compose-tool compose-tool-underline" onClick={() => applyFormat('underline')}>U</span>
+                                        <button type="button" className="compose-tool compose-tool-bold" onClick={() => applyFormat('bold')} aria-label="Bold">B</button>
+                                        <button type="button" className="compose-tool compose-tool-italic" onClick={() => applyFormat('italic')} aria-label="Italic">I</button>
+                                        <button type="button" className="compose-tool compose-tool-underline" onClick={() => applyFormat('underline')} aria-label="Underline">U</button>
                                     </div>
                                     <div className="compose-tool-divider" />
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool" onClick={() => applyFormat('h1')}>H1</span>
-                                        <span className="compose-tool" onClick={() => applyFormat('h2')}>H2</span>
+                                        <button type="button" className="compose-tool" onClick={() => applyFormat('h1')} aria-label="Heading 1">H1</button>
+                                        <button type="button" className="compose-tool" onClick={() => applyFormat('h2')} aria-label="Heading 2">H2</button>
                                     </div>
                                     <div className="compose-tool-divider" />
                                     <div className="compose-tool-group">
-                                        <span className="compose-tool" onClick={() => applyFormat('ul')}>• List</span>
-                                        <span className="compose-tool" onClick={() => applyFormat('ol')}>1. List</span>
+                                        <button type="button" className="compose-tool" onClick={() => applyFormat('ul')} aria-label="Bullet list">Bullet list</button>
+                                        <button type="button" className="compose-tool" onClick={() => applyFormat('ol')} aria-label="Numbered list">Numbered list</button>
                                     </div>
                                 </div>
 
                                 <textarea
                                     ref={textareaRef}
                                     className="textarea compose-body"
-                                    placeholder={`Dear Student,\n\nWe are pleased to inform you that ${notification.companyName} has opened a new placement opportunity.\n\nRole: [Position]\nPackage: [CTC]\nDeadline: ${new Date(notification.applicationDeadline).toLocaleDateString('en-IN')}\n\nPlease apply through the placement portal.\n\nBest regards,\nPlacement Cell`}
+                                    placeholder={`Dear Student,\n\nWe are pleased to inform you that ${notification.companyName} has opened a new placement opportunity.\n\nRole: [Position]\nPackage: [CTC]\nDeadline: ${deadlineText}\n\nPlease apply through the placement portal.\n\nBest regards,\nPlacement Cell`}
                                     value={emailBody}
                                     onChange={(e) => setEmailBody(e.target.value)}
                                     disabled={submitting}
@@ -425,7 +366,7 @@ export default function NotificationDetailPage() {
                             <div className="compose-footer">
                                 <div className="compose-attachments">
                                     <span className="compose-attach-label">
-                                        📎 Attachments (optional)
+                                        Attachments (optional)
                                     </span>
 
                                     <div
@@ -438,7 +379,7 @@ export default function NotificationDetailPage() {
                                         <div className="dropzone-text">
                                             <strong>Click to upload</strong> or drag and drop
                                             <br />
-                                            <span style={{ fontSize: '0.78rem' }}>PDF, Excel, Word, Images (max 10MB each)</span>
+                                            <span style={{ fontSize: '0.78rem' }}>PDF, Excel, Word, images, or archives (max 10MB each)</span>
                                         </div>
                                     </div>
 
@@ -463,11 +404,13 @@ export default function NotificationDetailPage() {
                                                         ({formatSize(file.size)})
                                                     </span>
                                                     <button
+                                                        type="button"
                                                         className="file-chip-remove"
                                                         onClick={() => removeFile(i)}
                                                         title="Remove"
+                                                        aria-label="Remove attachment"
                                                     >
-                                                        ✕
+                                                        x
                                                     </button>
                                                 </div>
                                             ))}
@@ -475,76 +418,137 @@ export default function NotificationDetailPage() {
                                     )}
                                 </div>
                             </div>
-
-                            <div style={{ padding: '0 16px 14px' }}>
-                                <label className="label">Admin Note (optional)</label>
-                                <textarea
-                                    className="textarea"
-                                    style={{ minHeight: 60 }}
-                                    placeholder="Add an internal note about this approval..."
-                                    value={adminMessage}
-                                    onChange={(e) => setAdminMessage(e.target.value)}
-                                    disabled={submitting}
-                                />
-                            </div>
-
-                            <div style={{
-                                padding: '14px 16px',
-                                borderTop: '1px solid #edf1f5',
-                                background: '#fbfcfe',
-                                display: 'flex',
-                                gap: 10,
-                                flexWrap: 'wrap'
-                            }}>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={handleApprove}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? 'Sending...' : '✅ Approve & Send Emails'}
-                                </button>
-                                <button
-                                    className="btn btn-danger"
-                                    onClick={() => setShowRejectForm(!showRejectForm)}
-                                    disabled={submitting}
-                                >
-                                    ❌ Reject
-                                </button>
-                            </div>
-
-                            {showRejectForm && (
-                                <div style={{ padding: '0 16px 16px' }}>
-                                    <label className="label">Rejection Reason</label>
-                                    <textarea
-                                        className="textarea"
-                                        style={{ minHeight: 60 }}
-                                        placeholder="Explain why this notification is being rejected..."
-                                        value={rejectMessage}
-                                        onChange={(e) => setRejectMessage(e.target.value)}
-                                        disabled={submitting}
-                                    />
-                                    <div style={{ marginTop: 10 }}>
-                                        <button
-                                            className="btn btn-danger btn-sm"
-                                            onClick={handleReject}
-                                            disabled={submitting}
-                                        >
-                                            {submitting ? 'Rejecting...' : 'Confirm Rejection'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {result && (
-                                <div style={{ padding: '0 16px 16px' }}>
-                                    <div className={`notice ${result.type}`}>{result.message}</div>
-                                </div>
-                            )}
                         </div>
+                    </SectionCard>
+
+                    {notification.eligibleStudents && notification.eligibleStudents.length > 0 && (
+                        <SectionCard
+                            title={`Eligible Students (${notification.eligibleStudents.length})`}
+                            subtitle="Recipients matched by the current eligibility criteria."
+                            className="workflow-section"
+                        >
+                            <div className="students-scroll">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {notification.eligibleStudents.map((s, i) => (
+                                            <tr key={i}>
+                                                <td className="mono" style={{ fontSize: '0.85rem' }}>{s.student_id}</td>
+                                                <td>{s.full_name}</td>
+                                                <td style={{ fontSize: '0.85rem' }}>{s.email}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </SectionCard>
                     )}
 
-                    {!isPending && result && (
-                        <div className={`notice ${result.type}`}>{result.message}</div>
+                    {notification.criteria && (
+                        <SectionCard
+                            title="Eligibility Criteria"
+                            subtitle="Raw criteria returned by the backend."
+                            className="workflow-section"
+                        >
+                            <pre style={{
+                                background: '#f0f4f8',
+                                padding: 14,
+                                borderRadius: 10,
+                                fontSize: '0.85rem',
+                                overflow: 'auto',
+                                margin: 0,
+                                fontFamily: 'var(--font-mono), monospace',
+                            }}>
+                                {JSON.stringify(notification.criteria, null, 2)}
+                            </pre>
+                        </SectionCard>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <SectionCard
+                        title="Notification Summary"
+                        subtitle="Key reference data for this job."
+                        className="workflow-section"
+                    >
+                        <div className="info-grid" style={{ marginBottom: 0 }}>
+                            <MetaItem label="Company" value={notification.companyName} />
+                            <MetaItem label="Eligible Students" value={notification.eligibleCount} />
+                            <MetaItem label="Deadline" value={deadlineText} />
+                            <MetaItem
+                                label="Status"
+                                value={<span className={`pill ${notification.status}`}>{notification.status?.replace('_', ' ')}</span>}
+                            />
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard
+                        title="Audit Info"
+                        subtitle="Operational timestamps and internal notes."
+                        className="workflow-section"
+                    >
+                        <div className="info-grid">
+                            {notification.approvedAt && (
+                                <MetaItem label="Approved At" value={new Date(notification.approvedAt).toLocaleString()} />
+                            )}
+                            {notification.rejectedAt && (
+                                <MetaItem label="Rejected At" value={new Date(notification.rejectedAt).toLocaleString()} />
+                            )}
+                            <MetaItem label="Created" value={new Date(notification.createdAt).toLocaleString()} />
+                        </div>
+
+                        {notification.adminMessage && (
+                            <div style={{ marginTop: 14 }}>
+                                <span className="info-label">Internal Note</span>
+                                <p style={{ margin: '6px 0 0', color: 'var(--ink)' }}>
+                                    {notification.adminMessage}
+                                </p>
+                            </div>
+                        )}
+                    </SectionCard>
+
+                    {!isPending && emailBody && (
+                        <SectionCard
+                            title="Sent Email Body"
+                            subtitle="The body that was sent after approval."
+                            className="workflow-section"
+                        >
+                            <pre style={{
+                                margin: 0,
+                                fontSize: '0.85rem',
+                                color: 'var(--ink)',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                background: '#f0f4f8',
+                                padding: 12,
+                                borderRadius: 8,
+                                fontFamily: 'inherit',
+                            }}>
+                                {emailBody}
+                            </pre>
+                        </SectionCard>
+                    )}
+
+                    {!isPending && notification.attachments && notification.attachments.length > 0 && (
+                        <SectionCard
+                            title="Attachments Sent"
+                            subtitle="Files included with the approved notification."
+                            className="workflow-section"
+                        >
+                            <div className="file-chips" style={{ marginTop: 0 }}>
+                                {notification.attachments.map((path, i) => (
+                                    <div key={i} className="file-chip">
+                                        {path.split('/').pop()}
+                                    </div>
+                                ))}
+                            </div>
+                        </SectionCard>
                     )}
                 </div>
             </div>

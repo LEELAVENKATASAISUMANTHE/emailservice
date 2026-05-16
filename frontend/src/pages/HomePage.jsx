@@ -6,7 +6,7 @@ export default function HomePage() {
       <section className="hero">
         <h1>Placement ERP Notification Console</h1>
         <p>
-          Manage job notifications, approve emails, and track delivery — all in one place.
+          Manage job notifications, approve emails, and track delivery, all in one place.
         </p>
       </section>
 

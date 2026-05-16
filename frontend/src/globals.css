@@ -20,6 +20,10 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -39,9 +43,20 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid rgba(0, 97, 168, 0.25);
+  outline-offset: 2px;
+}
+
 /* ─── Navbar ─── */
 .navbar {
   display: flex;
+  gap: 14px;
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
@@ -70,6 +85,8 @@ a {
 .navbar-links {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .navbar-link {
@@ -225,6 +242,7 @@ a {
 
 /* ─── Buttons ─── */
 .btn {
+  appearance: none;
   border: none;
   border-radius: 999px;
   padding: 10px 20px;
@@ -470,6 +488,7 @@ a {
 }
 
 .compose-tool {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -490,6 +509,11 @@ a {
 .compose-tool:hover {
   background: #e8eef5;
   border-color: #d4dde7;
+}
+
+.compose-tool:focus-visible {
+  background: #e8eef5;
+  border-color: #b8c8da;
 }
 
 .compose-tool-bold { font-weight: 700; }
@@ -602,6 +626,7 @@ a {
 }
 
 .file-chip-remove {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -619,6 +644,10 @@ a {
 }
 
 .file-chip-remove:hover {
+  background: var(--bad);
+}
+
+.file-chip-remove:focus-visible {
   background: var(--bad);
 }
 
@@ -709,6 +738,19 @@ a {
 
 /* ─── Responsive ─── */
 @media (max-width: 560px) {
+  .navbar {
+    align-items: flex-start;
+  }
+
+  .navbar-brand {
+    min-width: 0;
+  }
+
+  .navbar-links {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .compose-row {
     align-items: flex-start;
     flex-direction: column;
